@@ -25,5 +25,28 @@
    2. add columns of qty_to_schedule and active_ind
    3. add the 4 audit columns: create_account_id, update_account_id, created_at, updated_at
 
-* give an .env.example file with the list of environment variables required.
-* 
+* \[done] give an .env.example file with the list of environment variables required.
+* the text and icons in the navigagion header bar is difficult to see as there is not enough contrast between the backround and the text/icons.
+
+Account managament
+1. how do you view / edit ? it doesn't appear like there is any action that can be performed on the items in the account table.
+
+Player management
+1. I have a discord guild with my bot already added to it, can we modify one of the alliances to use this guild instead of what you have currently coded?
+
+Time slot management
+1. need mechanism to filter the displayed time slots:
+   1. a player drop down that filters on which player the timeslots are displayed for.
+   2. an event drop down that filters on which event the timeslots are displayed for.
+   3. a (time slot) type drop down that filters on which type (prefered, acceptable, avoid) of time slots are displayed for.
+   4. a validation indictor drop down that filters on indicator (True or False) of the time slots are disaplyed for.
+
+Search
+needs additional work.... but lets put that on the back burner for now.
+
+dashboard
+1. maybe have functionality where you click on a tile of the dashboard then it takes you to the respective page.
+2. later I want to revisit how upcoming events are displayed on the dashboard.
+
+user role vs admin roles
+1. when an admin type role is accessing any of the maintenance pages, they are going to need to be able to apply filters to and/or search the data being displayed.
