@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Environment/config
+.env
+.env.*
+!.env.example
+
+# IDE/editor
+.idea/
+.vscode/
+.DS_Store
+
+# NiceGUI
+.nicegui/
+
+# Microsoft Office temporary/lock files
+~$*
+.~lock.*
+*.tmp
