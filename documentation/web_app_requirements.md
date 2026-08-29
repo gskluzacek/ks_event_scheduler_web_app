@@ -87,10 +87,25 @@ The application can be divided into the following functional areas:
 * account
 * player
 * time_slot
+  * columns: time_slot_id, player_id, event_id, local_start_time, local_end_time, time_slot_type, priority, 
+    validated_indicator
+  * we store only start time and end time, no date components.
+  * time slot types are: prefered, acceptable, and avoid.
 * event
+  * columns: event_id, event_name, event_desc, qty_to_schedule, begin_date, end_date, active_ind, create_account_id, 
+    create_date_time, update_account_id, update_date_time
+  * 
 * role
-* player_role
+* player_role - is this needed?
 * time_zone
+  * columns: time_zone_id, region, location. 
+  * the IANA time zone name is split into region and location to facilitate selecting a complete IANA time zone name from two drop down lists. 
+  * The user first select the region drop down (select distinct region from time_zone), 
+  * then the location drop down is populated with just the locations within the selected region (select locaiton from time_zone where region = selected_region). 
+  * The complete IANA time zone name is then constructed by concatenating the region and location with a forward slash (/) in between.
+  * internally we use the python dateutil package `local_tz = tz.gettx(users_iana_time_zone_name)` to get the user's corresponding tzinfo object.
+  * we collect/store naive datetime values and then assing the time zone to the naive datetime values with `local_dt = naive_dt.replace(tzinfo=local_tz)`
+  * finally we convert the local datetime to UTC with `utc_dt = local_dt.astimezone(timezone.utc)`
 
 ## relationships
 
@@ -145,10 +160,17 @@ The primary integration for the application will be with Discord.
 8. Upon successful retrieval of the user's Discord account information, we prompt the user to select their local 
    time zone from a list of IANA time zones and to provide any other required information to complete their account 
    registration.
-9. The selects time zone, etc. and then submits the registration form.
+9. The user selects time zone, etc. and then submits the registration form.
 10. A record is inserted into the account table containing all required information.
 
 ## Player Joining Alliance flow
+
+Notes/Thoughts:
+* should we require the discord member to have a specific role in the Alliance's Discord guild before allowing 
+  them to add a player to the Alliance?
+* for accounts with multiple players under different alliacnes, might the requirement that the player be a member 
+  of mutliple discord guilds be too burdensome?
+* what about a player that moves between alliances on a regular basis? How should we handle that?
 
 1. after completing the account registration process, the user clicks the Player Management navigation item and 
    then clicks the Add Player button.
