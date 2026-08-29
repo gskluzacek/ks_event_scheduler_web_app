@@ -42,3 +42,6 @@ pip-wheel-metadata/
 ~$*
 .~lock.*
 *.tmp
+
+# ai generated files
+/ai_authored_content/
