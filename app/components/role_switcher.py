@@ -16,6 +16,7 @@ from nicegui import app, ui
 
 from app.models.sample_data import accounts, players
 from app.models.schema import Role
+from app.utils.storage import get_valid_id
 
 STORAGE_ACCOUNT_KEY = "preview_account_id"
 STORAGE_ROLE_KEY = "preview_role"
@@ -23,7 +24,10 @@ NEW_USER_OPTION = "__new_user__"  # sentinel for "not registered yet" - never st
 
 
 def current_account_id() -> int:
-    return app.storage.user.get(STORAGE_ACCOUNT_KEY, accounts[0].id)
+    """The account ID saved for this browser session, falling back to the first account
+    if it's missing or no longer valid (see app/utils/storage.py for why that can happen).
+    """
+    return get_valid_id(STORAGE_ACCOUNT_KEY, {a.id for a in accounts}, accounts[0].id)
 
 
 def current_role() -> Role:
