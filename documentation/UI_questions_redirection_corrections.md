@@ -7,7 +7,7 @@
 2. account in schema.py
    1. need to discuss account_type \[discord-user | manual-user ] for users set up by admins.
    2. inquire about discord_avatar_url
-   3. as discord `global_name` as `discord_global_name` in the account table
+   3. add the discord user object's `global_name` as `discord_global_name`
    4. think about using the IANA time zone name in the account table instead an FK???
    5. add create_account_id - set to NULL for discord-user account types or the admin's account_id for manual-user 
       account types.
@@ -15,13 +15,13 @@
 3. player in schema.py
    1. add the 4 audit columns: create_account_id, update_account_id, created_at, updated_at
 4. time slot in schema.py
-   1. start / end should not have date components, only time components.
-   2. add time_slot_type: prefered, acceptable, and avoid 
+   1. local start / end should not have date components, only time components.
+   2. add a time_slot_type column - with values of: prefered, acceptable, and avoid 
    3. add the 4 audit columns: create_account_id, update_account_id, created_at, updated_at
    4. see updated time_slot table info in the requirements doc
 5. event in schema.py
-   1. events have begin and end dates, which are date only components. The do not have anything to do with the 
-      schedule of the event.
+   1. events have begin and end dates, which are date only components. They do not have anything to do with the actual 
+      date / times of when the event is scheduled to occur. 
    2. add columns of qty_to_schedule and active_ind
    3. add the 4 audit columns: create_account_id, update_account_id, created_at, updated_at
 
@@ -33,6 +33,7 @@ Account managament
 
 Player management
 1. I have a discord guild with my bot already added to it, can we modify one of the alliances to use this guild instead of what you have currently coded?
+2. for regular users, can we add drop downs to filter the account's displayed plaers by kindom, alliance. and have a find by kingshot player name search box that filters as you type?
 
 Time slot management
 1. need mechanism to filter the displayed time slots:
