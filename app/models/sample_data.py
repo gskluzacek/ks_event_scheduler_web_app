@@ -41,7 +41,7 @@ alliances: list[Alliance] = [
 
 accounts: list[Account] = [
     Account(next_id(), AccountType.DISCORD_USER, "Greg#0001", "America/Chicago",
-            discord_user_id="111111111111111111", discord_username="Greg#0001",
+            discord_user_id="835177531904098380", discord_username="Greg#0001",
             discord_global_name="Greg", is_super_admin=True),
     Account(next_id(), AccountType.DISCORD_USER, "Aria#4821", "America/New_York",
             discord_user_id="222222222222222222", discord_username="Aria#4821",

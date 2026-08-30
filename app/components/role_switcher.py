@@ -19,6 +19,7 @@ from app.models.schema import Role
 
 STORAGE_ACCOUNT_KEY = "preview_account_id"
 STORAGE_ROLE_KEY = "preview_role"
+NEW_USER_OPTION = "__new_user__"  # sentinel for "not registered yet" - never stored
 
 
 def current_account_id() -> int:
@@ -38,6 +39,7 @@ def is_at_least(*allowed: Role) -> bool:
 def render() -> None:
     """Renders the account + role picker. Call once, inside the shared header."""
     account_options = {a.id: a.account_name for a in accounts}
+    account_options[NEW_USER_OPTION] = "— New User (not registered) —"
     role_options = {r.value: r.value for r in Role}
 
     with ui.row().classes("items-center gap-2"):
@@ -57,6 +59,12 @@ def render() -> None:
         ).props("dense outlined bg-color=white").classes("w-44 rounded")
 
         def on_change() -> None:
+            if account_select.value == NEW_USER_OPTION:
+                # Don't persist this - it's not a real account. Just send the browser to the
+                # registration flow so you can exercise it; picking a real account afterwards
+                # resets things back to normal.
+                ui.navigate.to("/register")
+                return
             app.storage.user[STORAGE_ACCOUNT_KEY] = account_select.value
             app.storage.user[STORAGE_ROLE_KEY] = role_select.value
             ui.navigate.reload()  # simplest way to re-run page builders with the new role

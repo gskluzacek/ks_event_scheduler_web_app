@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from nicegui import ui
 
@@ -67,9 +67,14 @@ def _open_add_dialog() -> None:
         alliance_select = ui.select(
             {a.id: a.name for a in alliances}, label="Alliance"
         ).props("outlined").classes("w-full")
+        # ui.date() has no `label` kwarg (that crashed) - use a caption label above it instead.
         with ui.row().classes("w-full gap-2"):
-            begin_date = ui.date(label="Begin Date").classes("flex-1")
-            end_date = ui.date(label="End Date").classes("flex-1")
+            with ui.column().classes("flex-1 gap-1"):
+                ui.label("Begin Date").classes("text-xs text-grey-6")
+                begin_date = ui.date(value=date.today().isoformat()).classes("w-full")
+            with ui.column().classes("flex-1 gap-1"):
+                ui.label("End Date").classes("text-xs text-grey-6")
+                end_date = ui.date(value=date.today().isoformat()).classes("w-full")
         qty_to_schedule = ui.number("Qty to Schedule", value=1, min=1) \
             .props("outlined").classes("w-full")
 

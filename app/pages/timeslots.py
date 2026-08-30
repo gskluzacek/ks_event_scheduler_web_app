@@ -68,7 +68,14 @@ def _open_add_dialog() -> None:
             {e.id: e.name for e in events}, label="Event"
         ).props("outlined").classes("w-full")
         # Time-only, no date - this is a recurring local-time availability window (see schema.TimeSlot).
-        start_time = ui.time(value="12:00").classes("w-full")
+        # Two dropdowns instead of ui.time()'s clock-face picker, per request.
+        hour_options = {h: datetime(2000, 1, 1, h).strftime("%I %p").lstrip("0") for h in range(24)}
+        minute_options = {0: "00", 15: "15", 30: "30", 45: "45"}
+        with ui.row().classes("w-full gap-2"):
+            hour_select = ui.select(hour_options, value=12, label="Start Hour") \
+                .props("outlined").classes("flex-1")
+            minute_select = ui.select(minute_options, value=0, label="Start Minute") \
+                .props("outlined").classes("flex-1")
         duration = ui.number("Duration (hours)", value=1, min=1, max=8).props("outlined").classes("w-full")
         type_select = ui.select(
             {t.value: t.value.capitalize() for t in TimeSlotType},
@@ -80,7 +87,7 @@ def _open_add_dialog() -> None:
                 ui.notify("Select a player and event", type="warning")
                 return
             # Combine with an arbitrary anchor date purely to do time arithmetic, then drop it again.
-            start_dt = datetime.strptime(start_time.value, "%H:%M")
+            start_dt = datetime(2000, 1, 1, hour_select.value, minute_select.value)
             end_dt = start_dt + timedelta(hours=duration.value or 1)
             time_slots.append(TimeSlot(
                 id=next_id(),
