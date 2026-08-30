@@ -50,3 +50,11 @@ dashboard
 
 user role vs admin roles
 1. when an admin type role is accessing any of the maintenance pages, they are going to need to be able to apply filters to and/or search the data being displayed.
+
+
+# TODO items
+
+the items below are for future consideration and are not required for the initial release of the application.
+
+1. make the web UI responsive to mobile devices. The current layout is not mobile friendly in certian areas of the application.
+2. 
