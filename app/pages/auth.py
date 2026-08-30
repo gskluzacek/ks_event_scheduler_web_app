@@ -21,7 +21,8 @@ from fastapi.responses import RedirectResponse
 from nicegui import app, ui
 
 from app.auth import discord_oauth
-from app.models.sample_data import accounts, time_zones
+from app.components.timezone_select import TimeZoneSelector
+from app.models.sample_data import accounts
 from app.models.schema import Account, AccountType, next_id
 
 STATE_KEY = "oauth_state"
@@ -83,21 +84,18 @@ def register_complete_page() -> None:
         ui.label(f"Welcome, {discord_user.get('username')}!").classes("text-2xl font-bold")
         ui.label("Just need a couple more details to finish setting up your account.")
 
-        tz_select = ui.select(
-            {tz.iana_name: f"{tz.iana_name} ({tz.current_utc_offset()})" for tz in time_zones},
-            label="Time Zone",
-        ).props("outlined").classes("w-full")
+        tz_selector = TimeZoneSelector()
 
         def submit() -> None:
-            if not tz_select.value:
-                ui.notify("Please select a time zone", type="warning")
+            if not tz_selector.value:
+                ui.notify("Please select a region and location", type="warning")
                 return
             username = discord_user.get("username", "unknown")
             account = Account(
                 id=next_id(),
                 account_type=AccountType.DISCORD_USER,
                 account_name=username,
-                time_zone=tz_select.value,
+                time_zone=tz_selector.value,
                 discord_user_id=str(discord_user["id"]),
                 discord_username=username,
                 discord_global_name=discord_user.get("global_name"),

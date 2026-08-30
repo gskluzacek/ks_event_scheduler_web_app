@@ -16,13 +16,13 @@ from app.models.schema import (
 )
 
 time_zones: list[TimeZone] = [
-    TimeZone("America/New_York"),
-    TimeZone("America/Chicago"),
-    TimeZone("America/Los_Angeles"),
-    TimeZone("Europe/London"),
-    TimeZone("Europe/Berlin"),
-    TimeZone("Asia/Tokyo"),
-    TimeZone("Australia/Sydney"),
+    TimeZone(next_id(), "America", "New_York"),
+    TimeZone(next_id(), "America", "Chicago"),
+    TimeZone(next_id(), "America", "Los_Angeles"),
+    TimeZone(next_id(), "Europe", "London"),
+    TimeZone(next_id(), "Europe", "Berlin"),
+    TimeZone(next_id(), "Asia", "Tokyo"),
+    TimeZone(next_id(), "Australia", "Sydney"),
 ]
 
 kingdoms: list[Kingdom] = [

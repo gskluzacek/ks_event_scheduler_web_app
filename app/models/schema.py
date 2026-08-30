@@ -11,10 +11,11 @@ even useful (edits by one role are visible when you switch roles).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from enum import Enum
 from itertools import count
-from zoneinfo import ZoneInfo
+
+from dateutil import tz
 
 _id_counter = count(1)
 
@@ -44,12 +45,23 @@ class TimeSlotType(str, Enum):
 
 @dataclass
 class TimeZone:
-    """Just the IANA name - no stored UTC offset (see schema.py module docstring below)."""
-    iana_name: str
+    """IANA name split into region + location (per web_app_requirements.md > time_zone),
+    so the UI can offer two cascading dropdowns instead of one very long list!
+    """
+    id: int
+    region: str      # e.g. "America" - the part before the "/"
+    location: str    # e.g. "Chicago" - the part after the "/"
+
+    @property
+    def iana_name(self) -> str:
+        return f"{self.region}/{self.location}"
 
     def current_utc_offset(self) -> str:
         """Computed on demand for display only - never stored, since offset shifts with DST."""
-        offset = datetime.now(ZoneInfo(self.iana_name)).strftime("%z")
+        local_tz = tz.gettz(self.iana_name)
+        if local_tz is None:
+            return "UTC+00:00"
+        offset = datetime.now(timezone.utc).astimezone(local_tz).strftime("%z")
         return f"UTC{offset[:3]}:{offset[3:]}" if offset else "UTC+00:00"
 
 

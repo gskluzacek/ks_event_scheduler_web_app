@@ -4,7 +4,7 @@ from nicegui import ui
 
 from app.components import layout, role_switcher
 from app.models.sample_data import alliances, kingdoms, time_zones
-from app.models.schema import Alliance, Kingdom, Role, next_id
+from app.models.schema import Alliance, Kingdom, Role, TimeZone, next_id
 
 
 @ui.page("/admin")
@@ -46,13 +46,38 @@ def kingdom_alliance_panel() -> None:
 
 @ui.refreshable
 def timezone_panel() -> None:
+    ui.button("Add Time Zone", icon="add", on_click=_open_add_timezone).props("outlined")
     columns = [
-        {"name": "iana_name", "label": "IANA Name", "field": "iana_name", "sortable": True},
+        {"name": "region", "label": "Region", "field": "region", "sortable": True},
+        {"name": "location", "label": "Location", "field": "location", "sortable": True},
         {"name": "utc_offset", "label": "Current UTC Offset", "field": "utc_offset"},
     ]
     # utc_offset is computed on the fly for display only - it is never stored (see schema.TimeZone).
-    rows = [{"iana_name": tz.iana_name, "utc_offset": tz.current_utc_offset()} for tz in time_zones]
-    ui.table(columns=columns, rows=rows, row_key="iana_name").classes("w-full").props("flat bordered")
+    rows = [
+        {"id": z.id, "region": z.region, "location": z.location, "utc_offset": z.current_utc_offset()}
+        for z in time_zones
+    ]
+    ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
+
+
+def _open_add_timezone() -> None:
+    with ui.dialog() as dialog, ui.card():
+        ui.label("Add Time Zone").classes("font-bold")
+        region = ui.input("Region (e.g. America)").props("outlined")
+        location = ui.input("Location (e.g. Chicago)").props("outlined")
+
+        def submit() -> None:
+            if not (region.value and location.value):
+                ui.notify("Region and location are required", type="warning")
+                return
+            time_zones.append(TimeZone(id=next_id(), region=region.value, location=location.value))
+            dialog.close()
+            timezone_panel.refresh()
+
+        with ui.row().classes("justify-end w-full gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Add", on_click=submit).props("unelevated color=primary")
+    dialog.open()
 
 
 def _open_add_kingdom() -> None:
