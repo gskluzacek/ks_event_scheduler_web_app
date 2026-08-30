@@ -48,9 +48,10 @@ def kingdom_alliance_panel() -> None:
 def timezone_panel() -> None:
     columns = [
         {"name": "iana_name", "label": "IANA Name", "field": "iana_name", "sortable": True},
-        {"name": "utc_offset", "label": "UTC Offset", "field": "utc_offset"},
+        {"name": "utc_offset", "label": "Current UTC Offset", "field": "utc_offset"},
     ]
-    rows = [{"iana_name": tz.iana_name, "utc_offset": tz.utc_offset} for tz in time_zones]
+    # utc_offset is computed on the fly for display only - it is never stored (see schema.TimeZone).
+    rows = [{"iana_name": tz.iana_name, "utc_offset": tz.current_utc_offset()} for tz in time_zones]
     ui.table(columns=columns, rows=rows, row_key="iana_name").classes("w-full").props("flat bordered")
 
 

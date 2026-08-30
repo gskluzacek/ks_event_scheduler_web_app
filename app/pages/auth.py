@@ -22,7 +22,7 @@ from nicegui import app, ui
 
 from app.auth import discord_oauth
 from app.models.sample_data import accounts, time_zones
-from app.models.schema import Account, next_id
+from app.models.schema import Account, AccountType, next_id
 
 STATE_KEY = "oauth_state"
 PENDING_DISCORD_USER_KEY = "pending_discord_user"
@@ -84,7 +84,7 @@ def register_complete_page() -> None:
         ui.label("Just need a couple more details to finish setting up your account.")
 
         tz_select = ui.select(
-            {tz.iana_name: f"{tz.iana_name} ({tz.utc_offset})" for tz in time_zones},
+            {tz.iana_name: f"{tz.iana_name} ({tz.current_utc_offset()})" for tz in time_zones},
             label="Time Zone",
         ).props("outlined").classes("w-full")
 
@@ -92,12 +92,16 @@ def register_complete_page() -> None:
             if not tz_select.value:
                 ui.notify("Please select a time zone", type="warning")
                 return
+            username = discord_user.get("username", "unknown")
             account = Account(
                 id=next_id(),
-                discord_user_id=str(discord_user["id"]),
-                discord_username=discord_user.get("username", "unknown"),
-                discord_avatar_url=discord_user.get("avatar"),
+                account_type=AccountType.DISCORD_USER,
+                account_name=username,
                 time_zone=tz_select.value,
+                discord_user_id=str(discord_user["id"]),
+                discord_username=username,
+                discord_global_name=discord_user.get("global_name"),
+                discord_avatar_url=discord_user.get("avatar"),
             )
             accounts.append(account)
             del app.storage.user[PENDING_DISCORD_USER_KEY]

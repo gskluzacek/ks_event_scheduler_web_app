@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from nicegui import ui
 
 from app.components import layout, role_switcher
@@ -30,6 +32,13 @@ def event_list() -> None:
                 with ui.column().classes("gap-0"):
                     ui.label(event.name).classes("text-lg font-semibold")
                     ui.label(f"{alliance} — {event.description}").classes("text-sm text-grey-6")
+                    if event.begin_date and event.end_date:
+                        ui.label(
+                            f"Window: {event.begin_date.isoformat()} to {event.end_date.isoformat()} "
+                            f"— {event.qty_to_schedule} to schedule"
+                        ).classes("text-sm text-grey-6")
+                    if not event.active_ind:
+                        ui.badge("Inactive", color="grey")
                     if event.scheduled_start:
                         ui.label(f"Scheduled: {event.scheduled_start.strftime('%Y-%m-%d %H:%M UTC')}") \
                             .classes("text-sm")
@@ -58,6 +67,11 @@ def _open_add_dialog() -> None:
         alliance_select = ui.select(
             {a.id: a.name for a in alliances}, label="Alliance"
         ).props("outlined").classes("w-full")
+        with ui.row().classes("w-full gap-2"):
+            begin_date = ui.date(label="Begin Date").classes("flex-1")
+            end_date = ui.date(label="End Date").classes("flex-1")
+        qty_to_schedule = ui.number("Qty to Schedule", value=1, min=1) \
+            .props("outlined").classes("w-full")
 
         def submit() -> None:
             if not (name.value and alliance_select.value):
@@ -68,6 +82,9 @@ def _open_add_dialog() -> None:
                 alliance_id=alliance_select.value,
                 name=name.value,
                 description=description.value or "",
+                begin_date=datetime.strptime(begin_date.value, "%Y-%m-%d").date() if begin_date.value else None,
+                end_date=datetime.strptime(end_date.value, "%Y-%m-%d").date() if end_date.value else None,
+                qty_to_schedule=int(qty_to_schedule.value or 1),
             ))
             dialog.close()
             event_list.refresh()

@@ -6,7 +6,7 @@ from nicegui import ui
 
 from app.components import layout, role_switcher
 from app.models.sample_data import events, players, time_slots
-from app.models.schema import Role, TimeSlot, next_id
+from app.models.schema import Role, TimeSlot, TimeSlotType, next_id
 
 
 def _visible_slots() -> list[TimeSlot]:
@@ -37,15 +37,17 @@ def slot_table() -> None:
             "id": s.id,
             "player": player.kingshot_name if player else "?",
             "event": event.name if event else "?",
-            "start": s.local_start.strftime("%Y-%m-%d %H:%M"),
-            "end": s.local_end.strftime("%Y-%m-%d %H:%M"),
+            "start": s.local_start.strftime("%H:%M"),
+            "end": s.local_end.strftime("%H:%M"),
+            "type": s.time_slot_type.value,
             "needs_review": "Yes" if s.needs_review else "",
         })
     columns = [
         {"name": "player", "label": "Player", "field": "player", "sortable": True},
         {"name": "event", "label": "Event", "field": "event", "sortable": True},
-        {"name": "start", "label": "Start", "field": "start", "sortable": True},
-        {"name": "end", "label": "End", "field": "end"},
+        {"name": "start", "label": "Local Start", "field": "start", "sortable": True},
+        {"name": "end", "label": "Local End", "field": "end"},
+        {"name": "type", "label": "Type", "field": "type", "sortable": True},
         {"name": "needs_review", "label": "Needs Review", "field": "needs_review"},
     ]
     ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
@@ -65,21 +67,28 @@ def _open_add_dialog() -> None:
         event_select = ui.select(
             {e.id: e.name for e in events}, label="Event"
         ).props("outlined").classes("w-full")
-        date_input = ui.date(value=datetime.utcnow().strftime("%Y-%m-%d")).classes("w-full")
+        # Time-only, no date - this is a recurring local-time availability window (see schema.TimeSlot).
         start_time = ui.time(value="12:00").classes("w-full")
         duration = ui.number("Duration (hours)", value=1, min=1, max=8).props("outlined").classes("w-full")
+        type_select = ui.select(
+            {t.value: t.value.capitalize() for t in TimeSlotType},
+            value=TimeSlotType.PREFERRED.value, label="Type",
+        ).props("outlined").classes("w-full")
 
         def submit() -> None:
             if not (player_select.value and event_select.value):
                 ui.notify("Select a player and event", type="warning")
                 return
-            start = datetime.strptime(f"{date_input.value} {start_time.value}", "%Y-%m-%d %H:%M")
+            # Combine with an arbitrary anchor date purely to do time arithmetic, then drop it again.
+            start_dt = datetime.strptime(start_time.value, "%H:%M")
+            end_dt = start_dt + timedelta(hours=duration.value or 1)
             time_slots.append(TimeSlot(
                 id=next_id(),
                 player_id=player_select.value,
                 event_id=event_select.value,
-                local_start=start,
-                local_end=start + timedelta(hours=duration.value or 1),
+                local_start=start_dt.time(),
+                local_end=end_dt.time(),
+                time_slot_type=TimeSlotType(type_select.value),
             ))
             dialog.close()
             slot_table.refresh()

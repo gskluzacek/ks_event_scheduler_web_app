@@ -8,21 +8,21 @@ should ideally not need to change much beyond the data-access layer.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 
 from app.models.schema import (
-    Account, Alliance, Event, Kingdom, Player, Role, TimeSlot, TimeZone,
-    next_id,
+    Account, AccountType, Alliance, Event, Kingdom, Player, Role, TimeSlot,
+    TimeSlotType, TimeZone, next_id,
 )
 
 time_zones: list[TimeZone] = [
-    TimeZone("America/New_York", "UTC-05:00"),
-    TimeZone("America/Chicago", "UTC-06:00"),
-    TimeZone("America/Los_Angeles", "UTC-08:00"),
-    TimeZone("Europe/London", "UTC+00:00"),
-    TimeZone("Europe/Berlin", "UTC+01:00"),
-    TimeZone("Asia/Tokyo", "UTC+09:00"),
-    TimeZone("Australia/Sydney", "UTC+10:00"),
+    TimeZone("America/New_York"),
+    TimeZone("America/Chicago"),
+    TimeZone("America/Los_Angeles"),
+    TimeZone("Europe/London"),
+    TimeZone("Europe/Berlin"),
+    TimeZone("Asia/Tokyo"),
+    TimeZone("Australia/Sydney"),
 ]
 
 kingdoms: list[Kingdom] = [
@@ -32,16 +32,33 @@ kingdoms: list[Kingdom] = [
 
 alliances: list[Alliance] = [
     Alliance(next_id(), "Crimson Vanguard", kingdoms[0].id, "1101010101", "Crimson Vanguard HQ"),
-    Alliance(next_id(), "Iron Covenant", kingdoms[0].id, "1101010102", "Iron Covenant Guild"),
+    # Real guild - Greg's corn-bot-1 is already a member, so this alliance can exercise the
+    # actual bot-token guild-membership check end to end (see auth/discord_guild.py).
+    Alliance(next_id(), "Iron Covenant", kingdoms[0].id,
+             "1517613215138189444", "I am Jack's raging bile duct - test"),
     Alliance(next_id(), "Shattered Throne", kingdoms[1].id, "1101010103", "Shattered Throne"),
 ]
 
 accounts: list[Account] = [
-    Account(next_id(), "111111111111111111", "Greg#0001", None, "America/Chicago", is_super_admin=True),
-    Account(next_id(), "222222222222222222", "Aria#4821", None, "America/New_York"),
-    Account(next_id(), "333333333333333333", "Kestrel#0099", None, "Europe/London"),
-    Account(next_id(), "444444444444444444", "Nox#7712", None, "Asia/Tokyo"),
+    Account(next_id(), AccountType.DISCORD_USER, "Greg#0001", "America/Chicago",
+            discord_user_id="111111111111111111", discord_username="Greg#0001",
+            discord_global_name="Greg", is_super_admin=True),
+    Account(next_id(), AccountType.DISCORD_USER, "Aria#4821", "America/New_York",
+            discord_user_id="222222222222222222", discord_username="Aria#4821",
+            discord_global_name="Aria"),
+    Account(next_id(), AccountType.DISCORD_USER, "Kestrel#0099", "Europe/London",
+            discord_user_id="333333333333333333", discord_username="Kestrel#0099",
+            discord_global_name="Kestrel"),
+    Account(next_id(), AccountType.DISCORD_USER, "Nox#7712", "Asia/Tokyo",
+            discord_user_id="444444444444444444", discord_username="Nox#7712",
+            discord_global_name="Nox"),
 ]
+
+# Example manual-user account, created by an admin (Greg) for a player without Discord.
+accounts.append(
+    Account(next_id(), AccountType.MANUAL_USER, "Torvald (manual)", "Europe/Berlin",
+            create_account_id=accounts[0].id)
+)
 
 players: list[Player] = [
     Player(next_id(), accounts[0].id, alliances[0].id, "KS-10042", "Greg", "GregTheBold", 84000, 28,
@@ -56,19 +73,19 @@ players: list[Player] = [
 
 events: list[Event] = [
     Event(next_id(), alliances[0].id, "Kingdom vs Kingdom", "Cross-kingdom war window",
-          scheduled_start=datetime.utcnow() + timedelta(days=2), is_published=True),
-    Event(next_id(), alliances[0].id, "Bear Trap", "Weekly bear trap coordination"),
-    Event(next_id(), alliances[1].id, "Castle Battle", "Alliance castle defense"),
+          begin_date=date.today() + timedelta(days=1), end_date=date.today() + timedelta(days=3),
+          qty_to_schedule=1, scheduled_start=datetime.utcnow() + timedelta(days=2), is_published=True),
+    Event(next_id(), alliances[0].id, "Bear Trap", "Weekly bear trap coordination",
+          begin_date=date.today(), end_date=date.today() + timedelta(days=7), qty_to_schedule=2),
+    Event(next_id(), alliances[1].id, "Castle Battle", "Alliance castle defense",
+          begin_date=date.today(), end_date=date.today() + timedelta(days=14)),
 ]
 
 time_slots: list[TimeSlot] = [
     TimeSlot(next_id(), players[0].id, events[0].id,
-             datetime.utcnow() + timedelta(days=2, hours=1),
-             datetime.utcnow() + timedelta(days=2, hours=3)),
+             time(18, 0), time(20, 0), time_slot_type=TimeSlotType.PREFERRED),
     TimeSlot(next_id(), players[1].id, events[0].id,
-             datetime.utcnow() + timedelta(days=2, hours=2),
-             datetime.utcnow() + timedelta(days=2, hours=4), needs_review=True),
+             time(19, 0), time(21, 0), time_slot_type=TimeSlotType.ACCEPTABLE, needs_review=True),
     TimeSlot(next_id(), players[2].id, events[1].id,
-             datetime.utcnow() + timedelta(days=5, hours=0),
-             datetime.utcnow() + timedelta(days=5, hours=1)),
+             time(6, 0), time(7, 0), time_slot_type=TimeSlotType.AVOID),
 ]

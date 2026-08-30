@@ -30,21 +30,23 @@ def account_table() -> None:
     rows = [
         {
             "id": a.id,
-            "discord_username": a.discord_username,
+            "account_name": a.account_name,
+            "account_type": a.account_type.value,
             "time_zone": a.time_zone,
             "super_admin": "Yes" if a.is_super_admin else "",
         }
         for a in _visible_accounts()
     ]
     columns = [
-        {"name": "discord_username", "label": "Discord User", "field": "discord_username", "sortable": True},
+        {"name": "account_name", "label": "Account", "field": "account_name", "sortable": True},
+        {"name": "account_type", "label": "Type", "field": "account_type", "sortable": True},
         {"name": "time_zone", "label": "Time Zone", "field": "time_zone", "sortable": True},
         {"name": "super_admin", "label": "SuperAdmin", "field": "super_admin"},
     ]
     table = ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
     if can_edit:
         table.add_slot(
-            "body-cell-discord_username",
+            "body-cell-account_name",
             '<q-td><a class="text-primary">{{ props.value }}</a></q-td>',
         )
         ui.label("(Admin/PowerAdmin: click a row in the real app to edit or remove an account)") \

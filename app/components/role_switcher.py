@@ -37,22 +37,24 @@ def is_at_least(*allowed: Role) -> bool:
 
 def render() -> None:
     """Renders the account + role picker. Call once, inside the shared header."""
-    account_options = {a.id: a.discord_username for a in accounts}
+    account_options = {a.id: a.account_name for a in accounts}
     role_options = {r.value: r.value for r in Role}
 
     with ui.row().classes("items-center gap-2"):
-        ui.icon("visibility").classes("text-grey-6")
-        ui.label("Previewing as:").classes("text-sm text-grey-6")
+        # text-white/80 (not text-grey-6) so the label is actually legible on the dark header.
+        ui.icon("visibility").classes("text-white/80")
+        ui.label("Previewing as:").classes("text-sm text-white/80")
 
+        # bg-white so the dropdown isn't the same color as the header behind it.
         account_select = ui.select(
             account_options,
             value=current_account_id(),
-        ).props("dense outlined").classes("w-40")
+        ).props("dense outlined bg-color=white").classes("w-40 rounded")
 
         role_select = ui.select(
             role_options,
             value=current_role().value,
-        ).props("dense outlined").classes("w-44")
+        ).props("dense outlined bg-color=white").classes("w-44 rounded")
 
         def on_change() -> None:
             app.storage.user[STORAGE_ACCOUNT_KEY] = account_select.value

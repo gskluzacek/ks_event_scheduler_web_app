@@ -40,19 +40,22 @@ def frame(active_route: str):
     """
     role = role_switcher.current_role()
 
-    with ui.header().classes("items-center justify-between px-4 py-2"):
+    with ui.header().classes("items-center justify-between px-4 py-2 bg-indigo-9"):
         with ui.row().classes("items-center gap-6"):
-            ui.label("Kingshot Scheduler").classes("text-lg font-bold")
+            ui.label("Kingshot Scheduler").classes("text-lg font-bold text-white")
             with ui.row().classes("gap-1"):
                 for route, label, icon, allowed_roles in NAV_ITEMS:
                     if allowed_roles and not role_switcher.is_at_least(*allowed_roles):
                         continue
                     is_active = route == active_route
+                    # Explicit text-white: Quasar flat buttons default to a low-contrast grey
+                    # that's nearly invisible on a colored header background.
                     btn = ui.button(
                         label, icon=icon, on_click=lambda r=route: ui.navigate.to(r)
-                    ).props("flat dense no-caps")
+                    ).props("flat dense no-caps color=white") \
+                        .classes("text-white hover:bg-white/25")
                     if is_active:
-                        btn.classes("bg-white/20")
+                        btn.classes("bg-white/25 font-bold")
         role_switcher.render()
 
     with ui.column().classes("w-full max-w-6xl mx-auto p-4 gap-4"):

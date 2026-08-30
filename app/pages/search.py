@@ -30,13 +30,13 @@ def search_page() -> None:
 
 
 def _render_accounts(term: str, elevated: bool) -> None:
-    matches = [a for a in accounts if term in a.discord_username.lower()] if term else accounts
+    matches = [a for a in accounts if term in a.account_name.lower()] if term else accounts
     if not matches:
         return
     with ui.card().classes("w-full"):
         ui.label("Accounts").classes("font-semibold")
         for a in matches:
-            label = f"{a.discord_username} — {a.time_zone}"
+            label = f"{a.account_name} — {a.time_zone}"
             if elevated:
                 label += f"  (id: {a.id})"
             ui.label(label)
@@ -66,4 +66,4 @@ def _render_slots(term: str) -> None:
     with ui.card().classes("w-full"):
         ui.label("Time Slots").classes("font-semibold")
         for s in matches:
-            ui.label(f"{s.local_start.strftime('%Y-%m-%d %H:%M')} - {s.local_end.strftime('%H:%M')}")
+            ui.label(f"{s.local_start.strftime('%H:%M')} - {s.local_end.strftime('%H:%M')} ({s.time_slot_type.value})")
