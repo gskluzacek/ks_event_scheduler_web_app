@@ -31,12 +31,12 @@ kingdoms: list[Kingdom] = [
 ]
 
 alliances: list[Alliance] = [
-    Alliance(next_id(), "Crimson Vanguard", kingdoms[0].id, "1101010101", "Crimson Vanguard HQ"),
+    Alliance(next_id(), "Crimson Vanguard", kingdoms[0].id, "1517613215138189444", "Crimson Vanguard HQ"),
     # Real guild - Greg's corn-bot-1 is already a member, so this alliance can exercise the
     # actual bot-token guild-membership check end to end (see auth/discord_guild.py).
     Alliance(next_id(), "Iron Covenant", kingdoms[0].id,
              "1517613215138189444", "I am Jack's raging bile duct - test"),
-    Alliance(next_id(), "Shattered Throne", kingdoms[1].id, "1101010103", "Shattered Throne"),
+    Alliance(next_id(), "Shattered Throne", kingdoms[1].id, "1517613215138189444", "Shattered Throne"),
 ]
 
 accounts: list[Account] = [

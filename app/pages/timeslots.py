@@ -6,7 +6,13 @@ from nicegui import ui
 
 from app.components import layout, role_switcher
 from app.models.sample_data import events, players, time_slots
-from app.models.schema import Role, TimeSlot, TimeSlotType, next_id
+from app.models.schema import Player, Role, TimeSlot, TimeSlotType, next_id
+from app.utils.filters import get_id_filter, get_text_filter, set_filter
+
+FILTER_PLAYER_KEY = "timeslots_filter_player_id"
+FILTER_EVENT_KEY = "timeslots_filter_event_id"
+FILTER_TYPE_KEY = "timeslots_filter_type"          # "" or a TimeSlotType value
+FILTER_REVIEW_KEY = "timeslots_filter_needs_review"  # "" | "yes" | "no"
 
 
 def _visible_slots() -> list[TimeSlot]:
@@ -16,6 +22,33 @@ def _visible_slots() -> list[TimeSlot]:
     return [s for s in time_slots if s.player_id in my_player_ids]
 
 
+def _filterable_players() -> list[Player]:
+    """Players offered in the Player filter dropdown - same scoping as _visible_slots()."""
+    if role_switcher.is_at_least(Role.SCHEDULER_ADMIN, Role.POWER_ADMIN):
+        return players
+    return [p for p in players if p.account_id == role_switcher.current_account_id()]
+
+
+def _filtered_slots() -> list[TimeSlot]:
+    rows = _visible_slots()
+    player_id = get_id_filter(FILTER_PLAYER_KEY, {p.id for p in _filterable_players()})
+    event_id = get_id_filter(FILTER_EVENT_KEY, {e.id for e in events})
+    type_value = get_text_filter(FILTER_TYPE_KEY)
+    review_value = get_text_filter(FILTER_REVIEW_KEY)
+
+    if player_id is not None:
+        rows = [s for s in rows if s.player_id == player_id]
+    if event_id is not None:
+        rows = [s for s in rows if s.event_id == event_id]
+    if type_value:
+        rows = [s for s in rows if s.time_slot_type.value == type_value]
+    if review_value == "yes":
+        rows = [s for s in rows if s.needs_review]
+    elif review_value == "no":
+        rows = [s for s in rows if not s.needs_review]
+    return rows
+
+
 @ui.page("/timeslots")
 def timeslots_page() -> None:
     ui.page_title("Time Slots - Kingshot Scheduler")
@@ -23,14 +56,76 @@ def timeslots_page() -> None:
         with ui.row().classes("w-full items-center justify-between"):
             ui.label("Time Slot Management").classes("text-2xl font-bold")
             ui.button("Add Time Slot", icon="add", on_click=_open_add_dialog).props("unelevated color=primary")
+        slot_filters()
         slot_table()
+
+
+@ui.refreshable
+def slot_filters() -> None:
+    filterable_players = _filterable_players()
+    player_id = get_id_filter(FILTER_PLAYER_KEY, {p.id for p in filterable_players})
+    event_id = get_id_filter(FILTER_EVENT_KEY, {e.id for e in events})
+    type_value = get_text_filter(FILTER_TYPE_KEY)
+    review_value = get_text_filter(FILTER_REVIEW_KEY)
+
+    with ui.row().classes("w-full items-end gap-2"):
+        player_select = ui.select(
+            {p.id: p.kingshot_name for p in filterable_players}, label="Player", value=player_id,
+        ).props("outlined dense clearable").classes("w-44")
+
+        event_select = ui.select(
+            {e.id: e.name for e in events}, label="Event", value=event_id,
+        ).props("outlined dense clearable").classes("w-44")
+
+        type_select = ui.select(
+            {t.value: t.value.capitalize() for t in TimeSlotType},
+            label="Type", value=type_value or None,
+        ).props("outlined dense clearable").classes("w-36")
+
+        review_select = ui.select(
+            {"yes": "Yes", "no": "No"}, label="Needs Review", value=review_value or None,
+        ).props("outlined dense clearable").classes("w-36")
+
+        def on_player_change() -> None:
+            set_filter(FILTER_PLAYER_KEY, player_select.value)
+            slot_table.refresh()
+
+        def on_event_change() -> None:
+            set_filter(FILTER_EVENT_KEY, event_select.value)
+            slot_table.refresh()
+
+        def on_type_change() -> None:
+            set_filter(FILTER_TYPE_KEY, type_select.value or "")
+            slot_table.refresh()
+
+        def on_review_change() -> None:
+            set_filter(FILTER_REVIEW_KEY, review_select.value or "")
+            slot_table.refresh()
+
+        player_select.on_value_change(on_player_change)
+        event_select.on_value_change(on_event_change)
+        type_select.on_value_change(on_type_change)
+        review_select.on_value_change(on_review_change)
+
+        if player_id is not None or event_id is not None or type_value or review_value:
+            ui.button("Clear Filters", icon="close", on_click=_clear_slot_filters).props("flat dense")
+
+
+def _clear_slot_filters() -> None:
+    set_filter(FILTER_PLAYER_KEY, None)
+    set_filter(FILTER_EVENT_KEY, None)
+    set_filter(FILTER_TYPE_KEY, "")
+    set_filter(FILTER_REVIEW_KEY, "")
+    slot_filters.refresh()
+    slot_table.refresh()
 
 
 @ui.refreshable
 def slot_table() -> None:
     is_scheduler = role_switcher.is_at_least(Role.SCHEDULER_ADMIN, Role.POWER_ADMIN)
+    filtered = _filtered_slots()
     rows = []
-    for s in _visible_slots():
+    for s in filtered:
         player = next((p for p in players if p.id == s.player_id), None)
         event = next((e for e in events if e.id == s.event_id), None)
         rows.append({
@@ -51,6 +146,8 @@ def slot_table() -> None:
         {"name": "needs_review", "label": "Needs Review", "field": "needs_review"},
     ]
     ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
+    if not filtered and _visible_slots():
+        ui.label("No time slots match the current filters.").classes("text-sm text-grey-5")
     if not is_scheduler:
         ui.label("Showing your own players' time slots only.").classes("text-xs text-grey-5")
 

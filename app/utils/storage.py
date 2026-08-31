@@ -17,22 +17,30 @@ so a stale value just resets to a sane default rather than crashing.
 """
 from __future__ import annotations
 
-from typing import Container, TypeVar
+from typing import Any, Container, TypeVar
 
 from nicegui import app
 
 T = TypeVar("T")
 
 
-def get_valid_id(storage_key: str, valid_ids: Container[T], default: T) -> T:
-    """Reads `storage_key` from app.storage.user, falling back to `default` if the
-    stored value is missing or no longer present in `valid_ids`.
+def get_valid_id(
+    storage_key: str, valid_ids: Container[T], default: T, storage: dict[str, Any] | None = None
+) -> T:
+    """Reads `storage_key` from `storage` (app.storage.user by default), falling back to
+    `default` if the stored value is missing or no longer present in `valid_ids`.
 
     `valid_ids` should be something re-checkable with `in` (a set, list, or
     similar) - not a one-shot generator, since it may need to be checked more
     than once across the life of a page.
+
+    Pass `storage=app.storage.tab` for values that should reset when the browser tab
+    closes but survive navigating between pages within it (e.g. filter selections) -
+    see app/utils/filters.py.
     """
-    stored = app.storage.user.get(storage_key)
+    if storage is None:
+        storage = app.storage.user
+    stored = storage.get(storage_key)
     if stored in valid_ids:
         return stored
     return default

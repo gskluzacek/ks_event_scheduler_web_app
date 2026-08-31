@@ -13,6 +13,11 @@ from app.auth.discord_guild import MembershipResult, verify_guild_membership
 from app.components import layout, role_switcher
 from app.models.sample_data import accounts, alliances, kingdoms, players
 from app.models.schema import Player, Role, next_id
+from app.utils.filters import get_id_filter, get_text_filter, set_filter
+
+FILTER_KINGDOM_KEY = "players_filter_kingdom_id"
+FILTER_ALLIANCE_KEY = "players_filter_alliance_id"
+FILTER_NAME_KEY = "players_filter_name"
 
 
 def _visible_players() -> list[Player]:
@@ -21,6 +26,22 @@ def _visible_players() -> list[Player]:
         return players
     account_id = role_switcher.current_account_id()
     return [p for p in players if p.account_id == account_id]
+
+
+def _filtered_players() -> list[Player]:
+    rows = _visible_players()
+    kingdom_id = get_id_filter(FILTER_KINGDOM_KEY, {k.id for k in kingdoms})
+    alliance_id = get_id_filter(FILTER_ALLIANCE_KEY, {a.id for a in alliances})
+    name = get_text_filter(FILTER_NAME_KEY).strip().lower()
+
+    if kingdom_id is not None:
+        alliance_ids = {a.id for a in alliances if a.kingdom_id == kingdom_id}
+        rows = [p for p in rows if p.alliance_id in alliance_ids]
+    if alliance_id is not None:
+        rows = [p for p in rows if p.alliance_id == alliance_id]
+    if name:
+        rows = [p for p in rows if name in p.kingshot_name.lower()]
+    return rows
 
 
 @ui.page("/players")
@@ -32,11 +53,68 @@ def players_page() -> None:
             ui.button("Add Player", icon="add", on_click=lambda: _open_add_player_dialog()) \
                 .props("unelevated color=primary")
 
+        player_filters()
         player_table()
 
 
 @ui.refreshable
+def player_filters() -> None:
+    kingdom_id = get_id_filter(FILTER_KINGDOM_KEY, {k.id for k in kingdoms})
+    alliance_id = get_id_filter(FILTER_ALLIANCE_KEY, {a.id for a in alliances})
+    name = get_text_filter(FILTER_NAME_KEY)
+
+    with ui.row().classes("w-full items-end gap-2"):
+        kingdom_select = ui.select(
+            {k.id: k.name for k in kingdoms}, label="Kingdom", value=kingdom_id,
+        ).props("outlined dense clearable").classes("w-48")
+
+        # Alliance options are constrained to the currently-selected kingdom, same
+        # cascading pattern as the Add Player dialog.
+        alliance_options = {
+            a.id: a.name for a in alliances if kingdom_id is None or a.kingdom_id == kingdom_id
+        }
+        alliance_select = ui.select(
+            alliance_options, label="Alliance", value=alliance_id,
+        ).props("outlined dense clearable").classes("w-48")
+
+        name_input = ui.input("Search Kingshot Name", value=name) \
+            .props("outlined dense clearable").classes("w-56")
+
+        def on_kingdom_change() -> None:
+            set_filter(FILTER_KINGDOM_KEY, kingdom_select.value)
+            # A kingdom change can orphan an already-selected alliance from a
+            # different kingdom, so clear it and rebuild the alliance dropdown.
+            set_filter(FILTER_ALLIANCE_KEY, None)
+            player_filters.refresh()
+            player_table.refresh()
+
+        def on_alliance_change() -> None:
+            set_filter(FILTER_ALLIANCE_KEY, alliance_select.value)
+            player_table.refresh()
+
+        def on_name_change() -> None:
+            set_filter(FILTER_NAME_KEY, name_input.value or "")
+            player_table.refresh()
+
+        kingdom_select.on_value_change(on_kingdom_change)
+        alliance_select.on_value_change(on_alliance_change)
+        name_input.on_value_change(on_name_change)
+
+        if kingdom_id is not None or alliance_id is not None or name:
+            ui.button("Clear Filters", icon="close", on_click=_clear_player_filters).props("flat dense")
+
+
+def _clear_player_filters() -> None:
+    set_filter(FILTER_KINGDOM_KEY, None)
+    set_filter(FILTER_ALLIANCE_KEY, None)
+    set_filter(FILTER_NAME_KEY, "")
+    player_filters.refresh()
+    player_table.refresh()
+
+
+@ui.refreshable
 def player_table() -> None:
+    filtered = _filtered_players()
     rows = [
         {
             "id": p.id,
@@ -47,7 +125,7 @@ def player_table() -> None:
             "tc_level": p.town_center_level,
             "roles": ", ".join(r.value for r in p.roles),
         }
-        for p in _visible_players()
+        for p in filtered
     ]
     columns = [
         {"name": "kingshot_name", "label": "Name", "field": "kingshot_name", "sortable": True},
@@ -58,6 +136,8 @@ def player_table() -> None:
         {"name": "roles", "label": "Roles", "field": "roles"},
     ]
     ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
+    if not filtered and _visible_players():
+        ui.label("No players match the current filters.").classes("text-sm text-grey-5")
 
 
 def _open_add_player_dialog() -> None:
