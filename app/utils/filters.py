@@ -46,3 +46,13 @@ def get_text_filter(storage_key: str) -> str:
 def set_filter(storage_key: str, value: Any) -> None:
     app.storage.user[storage_key] = value
 
+
+def get_sort_state(by_key: str, desc_key: str) -> tuple[str | None, bool]:
+    """Persisted table sort (column name + direction), same storage/scope as filters."""
+    return app.storage.user.get(by_key), bool(app.storage.user.get(desc_key, False))
+
+
+def set_sort_state(by_key: str, desc_key: str, sort_by: str | None, descending: bool) -> None:
+    app.storage.user[by_key] = sort_by
+    app.storage.user[desc_key] = descending
+

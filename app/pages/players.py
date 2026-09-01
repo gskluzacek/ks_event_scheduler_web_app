@@ -13,11 +13,13 @@ from app.auth.discord_guild import MembershipResult, verify_guild_membership
 from app.components import layout, role_switcher
 from app.models.sample_data import accounts, alliances, kingdoms, players
 from app.models.schema import Player, Role, next_id
-from app.utils.filters import get_id_filter, get_text_filter, set_filter
+from app.utils.filters import get_id_filter, get_sort_state, get_text_filter, set_filter, set_sort_state
 
 FILTER_KINGDOM_KEY = "players_filter_kingdom_id"
 FILTER_ALLIANCE_KEY = "players_filter_alliance_id"
 FILTER_NAME_KEY = "players_filter_name"
+SORT_BY_KEY = "players_sort_by"
+SORT_DESC_KEY = "players_sort_desc"
 
 
 def _visible_players() -> list[Player]:
@@ -28,10 +30,25 @@ def _visible_players() -> list[Player]:
     return [p for p in players if p.account_id == account_id]
 
 
+def _visible_alliance_ids() -> set[int]:
+    """Alliance IDs actually present among the players this viewer can see -
+    used to keep the Alliance filter from offering choices with zero results.
+    """
+    return {p.alliance_id for p in _visible_players()}
+
+
+def _visible_kingdom_ids() -> set[int]:
+    """Same idea as _visible_alliance_ids(), one level up: only kingdoms that
+    have at least one visible player in one of their alliances.
+    """
+    alliance_ids = _visible_alliance_ids()
+    return {a.kingdom_id for a in alliances if a.id in alliance_ids}
+
+
 def _filtered_players() -> list[Player]:
     rows = _visible_players()
-    kingdom_id = get_id_filter(FILTER_KINGDOM_KEY, {k.id for k in kingdoms})
-    alliance_id = get_id_filter(FILTER_ALLIANCE_KEY, {a.id for a in alliances})
+    kingdom_id = get_id_filter(FILTER_KINGDOM_KEY, _visible_kingdom_ids())
+    alliance_id = get_id_filter(FILTER_ALLIANCE_KEY, _visible_alliance_ids())
     name = get_text_filter(FILTER_NAME_KEY).strip().lower()
 
     if kingdom_id is not None:
@@ -59,19 +76,26 @@ def players_page() -> None:
 
 @ui.refreshable
 def player_filters() -> None:
-    kingdom_id = get_id_filter(FILTER_KINGDOM_KEY, {k.id for k in kingdoms})
-    alliance_id = get_id_filter(FILTER_ALLIANCE_KEY, {a.id for a in alliances})
+    visible_kingdom_ids = _visible_kingdom_ids()
+    visible_alliance_ids = _visible_alliance_ids()
+    kingdom_id = get_id_filter(FILTER_KINGDOM_KEY, visible_kingdom_ids)
+    alliance_id = get_id_filter(FILTER_ALLIANCE_KEY, visible_alliance_ids)
     name = get_text_filter(FILTER_NAME_KEY)
 
     with ui.row().classes("w-full items-end gap-2"):
+        # Options are restricted to what's actually in this viewer's data (not every
+        # kingdom/alliance that exists) - no point offering a choice with zero results.
+        # This is deliberately based on the *unfiltered* visible set, not the
+        # currently-filtered rows, so the options don't shift under you while typing
+        # a name search - only the Kingdom -> Alliance cascade narrows things further.
+        kingdom_options = {k.id: k.name for k in kingdoms if k.id in visible_kingdom_ids}
         kingdom_select = ui.select(
-            {k.id: k.name for k in kingdoms}, label="Kingdom", value=kingdom_id,
+            kingdom_options, label="Kingdom", value=kingdom_id,
         ).props("outlined dense clearable").classes("w-48")
 
-        # Alliance options are constrained to the currently-selected kingdom, same
-        # cascading pattern as the Add Player dialog.
         alliance_options = {
-            a.id: a.name for a in alliances if kingdom_id is None or a.kingdom_id == kingdom_id
+            a.id: a.name for a in alliances
+            if a.id in visible_alliance_ids and (kingdom_id is None or a.kingdom_id == kingdom_id)
         }
         alliance_select = ui.select(
             alliance_options, label="Alliance", value=alliance_id,
@@ -115,12 +139,18 @@ def _clear_player_filters() -> None:
 @ui.refreshable
 def player_table() -> None:
     filtered = _filtered_players()
+    # Precomputed once per render rather than re-scanning `alliances` per row/column.
+    alliance_by_id = {a.id: a for a in alliances}
+    kingdom_name_by_id = {k.id: k.name for k in kingdoms}
     rows = [
         {
             "id": p.id,
             "kingshot_name": p.kingshot_name,
             "kingshot_id": p.kingshot_id,
-            "alliance": next((a.name for a in alliances if a.id == p.alliance_id), "?"),
+            "kingdom": kingdom_name_by_id.get(
+                alliance_by_id[p.alliance_id].kingdom_id if p.alliance_id in alliance_by_id else None, "?"
+            ),
+            "alliance": alliance_by_id[p.alliance_id].name if p.alliance_id in alliance_by_id else "?",
             "power": f"{p.power:,}",
             "tc_level": p.town_center_level,
             "roles": ", ".join(r.value for r in p.roles),
@@ -130,12 +160,29 @@ def player_table() -> None:
     columns = [
         {"name": "kingshot_name", "label": "Name", "field": "kingshot_name", "sortable": True},
         {"name": "kingshot_id", "label": "Kingshot ID", "field": "kingshot_id"},
+        {"name": "kingdom", "label": "Kingdom", "field": "kingdom", "sortable": True},
         {"name": "alliance", "label": "Alliance", "field": "alliance", "sortable": True},
         {"name": "power", "label": "Power", "field": "power", "sortable": True},
         {"name": "tc_level", "label": "TC Lvl", "field": "tc_level", "sortable": True},
         {"name": "roles", "label": "Roles", "field": "roles"},
     ]
-    ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
+
+    sort_by, sort_desc = get_sort_state(SORT_BY_KEY, SORT_DESC_KEY)
+    # rowsPerPage: 0 = show every row, no pagination bar - we only use this prop to
+    # carry sort state, not to actually paginate.
+    table = ui.table(
+        columns=columns, rows=rows, row_key="id",
+        pagination={"sortBy": sort_by, "descending": sort_desc, "rowsPerPage": 0},
+    ).classes("w-full").props("flat bordered")
+
+    def on_pagination_change(e) -> None:
+        payload = e.args[0] if isinstance(e.args, list) and e.args else e.args
+        if not isinstance(payload, dict):
+            return
+        set_sort_state(SORT_BY_KEY, SORT_DESC_KEY, payload.get("sortBy"), bool(payload.get("descending", False)))
+
+    table.on("update:pagination", on_pagination_change)
+
     if not filtered and _visible_players():
         ui.label("No players match the current filters.").classes("text-sm text-grey-5")
 
@@ -224,6 +271,9 @@ def _open_add_player_dialog() -> None:
                 roles=[Role.USER],
             ))
             dialog.close()
+            # Refresh both: a new player can introduce a kingdom/alliance that wasn't
+            # in the data-driven filter dropdowns before (see player_filters()).
+            player_filters.refresh()
             player_table.refresh()
             ui.notify("Player added", type="positive")
 

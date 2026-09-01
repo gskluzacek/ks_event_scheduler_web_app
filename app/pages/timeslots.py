@@ -7,12 +7,14 @@ from nicegui import ui
 from app.components import layout, role_switcher
 from app.models.sample_data import events, players, time_slots
 from app.models.schema import Player, Role, TimeSlot, TimeSlotType, next_id
-from app.utils.filters import get_id_filter, get_text_filter, set_filter
+from app.utils.filters import get_id_filter, get_sort_state, get_text_filter, set_filter, set_sort_state
 
 FILTER_PLAYER_KEY = "timeslots_filter_player_id"
 FILTER_EVENT_KEY = "timeslots_filter_event_id"
 FILTER_TYPE_KEY = "timeslots_filter_type"          # "" or a TimeSlotType value
 FILTER_REVIEW_KEY = "timeslots_filter_needs_review"  # "" | "yes" | "no"
+SORT_BY_KEY = "timeslots_sort_by"
+SORT_DESC_KEY = "timeslots_sort_desc"
 
 
 def _visible_slots() -> list[TimeSlot]:
@@ -145,7 +147,20 @@ def slot_table() -> None:
         {"name": "type", "label": "Type", "field": "type", "sortable": True},
         {"name": "needs_review", "label": "Needs Review", "field": "needs_review"},
     ]
-    ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
+    sort_by, sort_desc = get_sort_state(SORT_BY_KEY, SORT_DESC_KEY)
+    table = ui.table(
+        columns=columns, rows=rows, row_key="id",
+        pagination={"sortBy": sort_by, "descending": sort_desc, "rowsPerPage": 0},
+    ).classes("w-full").props("flat bordered")
+
+    def on_pagination_change(e) -> None:
+        payload = e.args[0] if isinstance(e.args, list) and e.args else e.args
+        if not isinstance(payload, dict):
+            return
+        set_sort_state(SORT_BY_KEY, SORT_DESC_KEY, payload.get("sortBy"), bool(payload.get("descending", False)))
+
+    table.on("update:pagination", on_pagination_change)
+
     if not filtered and _visible_slots():
         ui.label("No time slots match the current filters.").classes("text-sm text-grey-5")
     if not is_scheduler:
