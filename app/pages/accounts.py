@@ -3,7 +3,7 @@ from __future__ import annotations
 from nicegui import ui
 
 from app.components import layout, role_switcher
-from app.models.sample_data import accounts
+from app.models.sample_data import accounts, players
 from app.models.schema import Role
 
 
@@ -27,22 +27,34 @@ def accounts_page() -> None:
 @ui.refreshable
 def account_table() -> None:
     can_edit = role_switcher.is_at_least(Role.ADMIN, Role.POWER_ADMIN)
-    rows = [
-        {
+    show_admin_columns = role_switcher.is_any_admin()
+
+    player_count_by_account: dict[int, int] = {}
+    for p in players:
+        player_count_by_account[p.account_id] = player_count_by_account.get(p.account_id, 0) + 1
+
+    rows = []
+    for a in _visible_accounts():
+        row = {
             "id": a.id,
             "account_name": a.account_name,
-            "account_type": a.account_type.value,
+            "player_count": player_count_by_account.get(a.id, 0),
             "time_zone": a.time_zone,
-            "super_admin": "Yes" if a.is_super_admin else "",
         }
-        for a in _visible_accounts()
-    ]
+        if show_admin_columns:
+            row["account_type"] = a.account_type.value
+            row["super_admin"] = "Yes" if a.is_super_admin else ""
+        rows.append(row)
+
     columns = [
         {"name": "account_name", "label": "Account", "field": "account_name", "sortable": True},
-        {"name": "account_type", "label": "Type", "field": "account_type", "sortable": True},
+        {"name": "player_count", "label": "Players", "field": "player_count", "sortable": True},
         {"name": "time_zone", "label": "Time Zone", "field": "time_zone", "sortable": True},
-        {"name": "super_admin", "label": "SuperAdmin", "field": "super_admin"},
     ]
+    if show_admin_columns:
+        columns.append({"name": "account_type", "label": "Type", "field": "account_type", "sortable": True})
+        columns.append({"name": "super_admin", "label": "SuperAdmin", "field": "super_admin"})
+
     table = ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
     if can_edit:
         table.add_slot(

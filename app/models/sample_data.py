@@ -1,5 +1,5 @@
 """
-Seeded fake data, held in module-town_center_level lists.
+Seeded fake data, held in module-level lists.
 
 Everything in this file resets when the app restarts. It exists purely so the
 mock UI has something believable to render, filter, and edit. When we move
@@ -137,7 +137,7 @@ players: list[Player] = [
         kingshot_name="Dark Chocolate",
         discord_nickname="The Dark 'Chocolate' Knight",
         power=131200000,
-        town_center_level=30,
+        town_center_level="30",
         roles=[Role.POWER_ADMIN],
     ),
     Player(
@@ -148,7 +148,7 @@ players: list[Player] = [
         kingshot_name="Milk Chocolate",
         discord_nickname="Count Chocula",
         power=131200001,
-        town_center_level=21,
+        town_center_level="21",
         roles=[Role.USER],
     ),
     Player(
@@ -159,7 +159,7 @@ players: list[Player] = [
         kingshot_name="Mint Chocolate",
         discord_nickname="Luck O' The Irish",
         power=131200002,
-        town_center_level=22,
+        town_center_level="22",
         roles=[Role.USER],
     ),
     Player(
@@ -170,7 +170,7 @@ players: list[Player] = [
         kingshot_name="White Chocolate",
         discord_nickname="I'm not a bigot, honestly",
         power=131200003,
-        town_center_level=23,
+        town_center_level="23",
         roles=[Role.USER],
     ),
     Player(
@@ -181,7 +181,7 @@ players: list[Player] = [
         kingshot_name="Unsweetened Chocolate",
         discord_nickname="Just a bitter Old Man",
         power=131200004,
-        town_center_level=24,
+        town_center_level="24",
         roles=[Role.USER],
     ),
     Player(
@@ -190,9 +190,9 @@ players: list[Player] = [
         alliance_id=alliances[2].id,
         kingshot_id="229989374",
         kingshot_name="German Chocolate",
-        discord_nickname="Not zi from Germany",
+        discord_nickname="Not from Germany",
         power=131200005,
-        town_center_level=25,
+        town_center_level="25",
         roles=[Role.USER],
     ),
     Player(
@@ -203,7 +203,7 @@ players: list[Player] = [
         kingshot_name="Mexican Chocolate",
         discord_nickname="Ima SOOO Spicy ¡Olé!",
         power=131200006,
-        town_center_level=26,
+        town_center_level="26",
         roles=[Role.USER],
     ),
     Player(
@@ -214,7 +214,7 @@ players: list[Player] = [
         kingshot_name="Hazelnut Chocolate",
         discord_nickname="Better than Nutella",
         power=131200007,
-        town_center_level=27,
+        town_center_level="27",
         roles=[Role.USER],
     ),
     Player(
@@ -225,7 +225,7 @@ players: list[Player] = [
         kingshot_name="Mouthy Marla",
         discord_nickname="Bride of Tyler Durden",
         power=61250,
-        town_center_level=19,
+        town_center_level="19",
         roles=[Role.ADMIN],
     ),
     Player(
@@ -236,7 +236,7 @@ players: list[Player] = [
         kingshot_name="Jack's Angry Splean",
         discord_nickname="Tyler Durden",
         power=45300,
-        town_center_level=22,
+        town_center_level="22",
         roles=[Role.SCHEDULER_ADMIN],
     ),
     Player(
@@ -247,18 +247,18 @@ players: list[Player] = [
         kingshot_name="Desert Moon",
         discord_nickname="Dennis DeYoung Poser",
         power=39900,
-        town_center_level=20,
+        town_center_level="20",
         roles=[Role.USER],
     ),
     Player(
         id=next_id(),
-        account_id=accounts[3].id,
+        account_id=accounts[4].id,
         alliance_id=alliances[4].id,
         kingshot_id="314159265",
         kingshot_name="h = 6.62607015",
         discord_nickname="Schrödinger’s Cat",
         power=39900,
-        town_center_level=20,
+        town_center_level="20",
         roles=[Role.USER],
     ),
 ]

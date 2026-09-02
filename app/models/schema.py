@@ -43,6 +43,14 @@ class TimeSlotType(str, Enum):
     AVOID = "avoid"
 
 
+# Town Center level, as a string rather than a plain int: past level 30 the game
+# switches to a "TGx-y" naming scheme (tier x, sub-level y) rather than continuing
+# to count up numerically, so this can't be represented as a simple integer range.
+TOWN_CENTER_LEVELS: list[str] = [str(n) for n in range(1, 31)] + [
+    f"TG{tier}-{level}" for tier in range(1, 6) for level in range(1, 6)
+]
+
+
 @dataclass
 class TimeZone:
     """IANA name split into region + location (per web_app_requirements.md > time_zone),
@@ -109,7 +117,7 @@ class Player:
     kingshot_name: str
     discord_nickname: str | None
     power: int
-    town_center_level: int
+    town_center_level: str
     roles: list[Role] = field(default_factory=list)  # e.g. [Role.USER] or [Role.ADMIN]
     create_account_id: int | None = None
     created_at: datetime = field(default_factory=datetime.utcnow)

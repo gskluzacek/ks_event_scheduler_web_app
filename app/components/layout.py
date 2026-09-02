@@ -40,6 +40,16 @@ def frame(active_route: str):
     """
     role = role_switcher.current_role()
 
+    # Light blue-gray tint on every ui.table header, site-wide. A plain CSS rule
+    # (rather than ui.query, which only affects elements already on the page at
+    # call time) so it also covers tables created later in the page function.
+    # Harmless to call once per page load - it's just a <style> tag.
+    ui.add_css("""
+        .q-table thead th {
+            background-color: #dbe4ee;
+        }
+    """)
+
     with ui.header().classes("items-center justify-between px-4 py-2 bg-indigo-9"):
         with ui.row().classes("items-center gap-6"):
             ui.label("Kingshot Scheduler").classes("text-lg font-bold text-white")

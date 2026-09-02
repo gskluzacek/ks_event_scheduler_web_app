@@ -40,6 +40,14 @@ def is_at_least(*allowed: Role) -> bool:
     return role == Role.SUPER_ADMIN or role in allowed
 
 
+def is_any_admin() -> bool:
+    """True for Admin, PowerAdmin, or SchedulerAdmin (or SuperAdmin, via is_at_least's rule) -
+    i.e. any elevated role, as opposed to a plain User. Shared by pages that gate a
+    column or filter behind "any admin-type role" rather than a specific one.
+    """
+    return is_at_least(Role.ADMIN, Role.POWER_ADMIN, Role.SCHEDULER_ADMIN)
+
+
 def render() -> None:
     """Renders the account + role picker. Call once, inside the shared header."""
     account_options = {a.id: a.account_name for a in accounts}
