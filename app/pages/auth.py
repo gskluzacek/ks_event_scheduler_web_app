@@ -99,7 +99,9 @@ def register_complete_page() -> None:
                 discord_user_id=str(discord_user["id"]),
                 discord_username=username,
                 discord_global_name=discord_user.get("global_name"),
-                discord_avatar_url=discord_user.get("avatar"),
+                discord_avatar_url=discord_oauth.build_avatar_url(
+                    str(discord_user["id"]), discord_user.get("avatar")
+                ),
             )
             accounts.append(account)
             del app.storage.user[PENDING_DISCORD_USER_KEY]

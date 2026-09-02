@@ -73,3 +73,18 @@ async def fetch_discord_user(access_token: str) -> dict:
         response = await client.get(USER_URL, headers=headers)
         response.raise_for_status()
         return response.json()
+
+
+AVATAR_SIZE = 2048  # full-res; list/table thumbnails scale it down via CSS, not a smaller CDN fetch
+
+
+def build_avatar_url(discord_user_id: str, avatar_hash: str | None) -> str | None:
+    """Discord's /users/@me only returns an avatar *hash*, not a URL - this builds the
+    actual (global) CDN URL. Returns None if the user has no custom avatar (caller should
+    fall back to a generic icon rather than Discord's default-avatar CDN endpoint, since
+    that requires the user's discriminator/index which we don't store).
+    """
+    if not avatar_hash:
+        return None
+    ext = "gif" if avatar_hash.startswith("a_") else "png"
+    return f"https://cdn.discordapp.com/avatars/{discord_user_id}/{avatar_hash}.{ext}?size={AVATAR_SIZE}"

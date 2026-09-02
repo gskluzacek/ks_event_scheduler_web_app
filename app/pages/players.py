@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from nicegui import ui
 
-from app.auth.discord_guild import MembershipResult, verify_guild_membership
+from app.auth.discord_guild import MembershipResult, build_guild_avatar_url, verify_guild_membership
 from app.components import layout, role_switcher
 from app.models.sample_data import accounts, alliances, kingdoms, players
 from app.models.schema import Player, Role, TOWN_CENTER_LEVELS, next_id
@@ -241,11 +241,17 @@ def player_table() -> None:
     alliance_by_id = {a.id: a for a in alliances}
     kingdom_name_by_id = {k.id: k.name for k in kingdoms}
     account_name_by_id = {a.id: a.account_name for a in accounts}
+    account_by_id = {a.id: a for a in accounts}
 
     rows = []
     for p in filtered:
+        account = account_by_id.get(p.account_id)
+        # Guild-specific avatar if the player has one; else the account's global Discord
+        # avatar; else None (renders as a generic person icon - see the table slot below).
+        avatar_url = p.discord_guild_avatar_url or (account.discord_avatar_url if account else None)
         row = {
             "id": p.id,
+            "avatar_url": avatar_url,
             "kingdom": kingdom_name_by_id.get(
                 alliance_by_id[p.alliance_id].kingdom_id if p.alliance_id in alliance_by_id else None, "?"
             ),
@@ -263,6 +269,7 @@ def player_table() -> None:
         rows.append(row)
 
     columns = [
+        {"name": "avatar_url", "label": "", "field": "avatar_url"},
         {"name": "kingdom", "label": "Kingdom", "field": "kingdom", "sortable": True},
         {"name": "alliance", "label": "Alliance", "field": "alliance", "sortable": True},
     ]
@@ -285,6 +292,19 @@ def player_table() -> None:
         columns=columns, rows=rows, row_key="id",
         pagination={"sortBy": sort_by, "descending": sort_desc, "rowsPerPage": 0},
     ).classes("w-full").props("flat bordered")
+    # Custom cell: q-avatar with the guild/global Discord image if we have one, else a
+    # generic icon. ui.table has no Python-level "image column" option, so this is one of
+    # the rare legitimate uses of a Quasar template string (nicegui_llms.md > Named Slots).
+    table.add_slot(
+        "body-cell-avatar_url",
+        '''
+        <q-td :props="props">
+            <q-avatar size="28px" color="grey-4" text-color="grey-8" icon="person">
+                <img v-if="props.value" :src="props.value" />
+            </q-avatar>
+        </q-td>
+        ''',
+    )
 
     def on_pagination_change(e) -> None:
         payload = e.args[0] if isinstance(e.args, list) and e.args else e.args
@@ -312,6 +332,7 @@ def _open_add_player_dialog() -> None:
     account = next(a for a in accounts if a.id == role_switcher.current_account_id())
     verified_alliance_id: dict[str, int | None] = {"value": None}
     verified_nickname: dict[str, str | None] = {"value": None}
+    verified_avatar_hash: dict[str, str | None] = {"value": None}
 
     with ui.dialog() as dialog, ui.card().classes("w-96"):
         ui.label("Add Player").classes("text-lg font-bold")
@@ -334,6 +355,7 @@ def _open_add_player_dialog() -> None:
             guild_label.set_text("")
             verify_status.set_text("")
             verified_alliance_id["value"] = None
+            verified_avatar_hash["value"] = None
             _sync_buttons()
 
         def on_alliance_change() -> None:
@@ -341,6 +363,7 @@ def _open_add_player_dialog() -> None:
             guild_label.set_text(f"Discord guild: {alliance.discord_guild_name}" if alliance else "")
             verify_status.set_text("")
             verified_alliance_id["value"] = None
+            verified_avatar_hash["value"] = None
             _sync_buttons()
 
         kingdom_select.on_value_change(on_kingdom_change)
@@ -356,6 +379,7 @@ def _open_add_player_dialog() -> None:
             if check.result == MembershipResult.VERIFIED:
                 verified_alliance_id["value"] = alliance.id
                 verified_nickname["value"] = check.nickname
+                verified_avatar_hash["value"] = check.avatar_hash
                 verify_status.classes(remove="text-negative", add="text-positive")
                 verify_status.set_text(f"✓ Verified{f' — nick: {check.nickname}' if check.nickname else ''}")
                 details_column.set_visibility(True)
@@ -387,6 +411,13 @@ def _open_add_player_dialog() -> None:
             if not verified_alliance_id["value"]:
                 ui.notify("Verify guild membership first", type="warning")
                 return
+            alliance = next(a for a in alliances if a.id == verified_alliance_id["value"])
+            # Stores only the guild-specific avatar, if the member actually set one for
+            # this server - may be None. Display code (player_table()) falls back to the
+            # account's global avatar, then a generic icon, if this is unset.
+            guild_avatar_url = build_guild_avatar_url(
+                alliance.discord_guild_id, account.discord_user_id, verified_avatar_hash["value"]
+            )
             players.append(Player(
                 id=next_id(),
                 account_id=account.id,
@@ -397,6 +428,7 @@ def _open_add_player_dialog() -> None:
                 power=int(power.value or 0),
                 town_center_level=tc_level.value or TOWN_CENTER_LEVELS[0],
                 roles=[Role.USER],
+                discord_guild_avatar_url=guild_avatar_url,
             ))
             dialog.close()
             # Refresh both: a new player can introduce a kingdom/alliance/account that

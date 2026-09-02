@@ -86,6 +86,7 @@ accounts: list[Account] = [
         discord_user_id="835177531904098380",
         discord_username="gskluzacek",
         discord_global_name="Greg",
+        discord_avatar_url="https://cdn.discordapp.com/avatars/835177531904098380/f20536006b176b257c71f9fb9c52dbf2.webp?size=2048",
         is_super_admin=True,
     ),
     Account(
@@ -139,6 +140,7 @@ players: list[Player] = [
         power=131200000,
         town_center_level="30",
         roles=[Role.POWER_ADMIN],
+        discord_guild_avatar_url="https://cdn.discordapp.com/guilds/1517613215138189444/users/835177531904098380/avatars/d5cc62b7313b1f2ea7092bdd9c306653.webp?size=2048",
     ),
     Player(
         id=next_id(),

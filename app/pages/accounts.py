@@ -37,6 +37,7 @@ def account_table() -> None:
     for a in _visible_accounts():
         row = {
             "id": a.id,
+            "avatar_url": a.discord_avatar_url,
             "account_name": a.account_name,
             "player_count": player_count_by_account.get(a.id, 0),
             "time_zone": a.time_zone,
@@ -47,6 +48,7 @@ def account_table() -> None:
         rows.append(row)
 
     columns = [
+        {"name": "avatar_url", "label": "", "field": "avatar_url"},
         {"name": "account_name", "label": "Account", "field": "account_name", "sortable": True},
         {"name": "player_count", "label": "Players", "field": "player_count", "sortable": True},
         {"name": "time_zone", "label": "Time Zone", "field": "time_zone", "sortable": True},
@@ -56,6 +58,19 @@ def account_table() -> None:
         columns.append({"name": "super_admin", "label": "SuperAdmin", "field": "super_admin"})
 
     table = ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
+    # Custom cell: q-avatar with the Discord image if we have one, else a generic icon.
+    # ui.table has no Python-level "image column" option, so this is one of the rare
+    # legitimate uses of a Quasar template string (nicegui_llms.md > Named Slots).
+    table.add_slot(
+        "body-cell-avatar_url",
+        '''
+        <q-td :props="props">
+            <q-avatar size="28px" color="grey-4" text-color="grey-8" icon="person">
+                <img v-if="props.value" :src="props.value" />
+            </q-avatar>
+        </q-td>
+        ''',
+    )
     if can_edit:
         table.add_slot(
             "body-cell-account_name",

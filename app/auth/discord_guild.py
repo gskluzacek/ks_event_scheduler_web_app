@@ -40,7 +40,24 @@ class MembershipCheck:
     result: MembershipResult
     nickname: str | None = None
     roles: list[str] | None = None
+    avatar_hash: str | None = None  # guild-specific avatar hash, if the member set one
     detail: str | None = None
+
+
+def build_guild_avatar_url(guild_id: str, discord_user_id: str, avatar_hash: str | None) -> str | None:
+    """Guild (server) avatars are a separate override from the global avatar - a member
+    can set a per-server picture that only shows in that guild. Returns None if the
+    member has no guild-specific avatar (caller should then fall back to the account's
+    global discord_avatar_url, and only fall back further to a generic icon if that's
+    also unset - see app/pages/players.py).
+    """
+    if not avatar_hash:
+        return None
+    ext = "gif" if avatar_hash.startswith("a_") else "png"
+    return (
+        f"https://cdn.discordapp.com/guilds/{guild_id}/users/{discord_user_id}"
+        f"/avatars/{avatar_hash}.{ext}?size=2048"
+    )
 
 
 async def verify_guild_membership(guild_id: str, discord_user_id: str) -> MembershipCheck:
@@ -59,6 +76,7 @@ async def verify_guild_membership(guild_id: str, discord_user_id: str) -> Member
             MembershipResult.VERIFIED,
             nickname=member.get("nick"),
             roles=member.get("roles", []),
+            avatar_hash=member.get("avatar"),
         )
     if response.status_code == 404:
         return MembershipCheck(MembershipResult.NOT_A_MEMBER)

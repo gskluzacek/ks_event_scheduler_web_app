@@ -119,6 +119,7 @@ class Player:
     power: int
     town_center_level: str
     roles: list[Role] = field(default_factory=list)  # e.g. [Role.USER] or [Role.ADMIN]
+    discord_guild_avatar_url: str | None = None  # guild-specific avatar override; None means "use the account's global avatar instead" (see app/pages/players.py)
     create_account_id: int | None = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     update_account_id: int | None = None
