@@ -299,8 +299,9 @@ def player_table() -> None:
         "body-cell-avatar_url",
         '''
         <q-td :props="props">
-            <q-avatar size="28px" color="grey-4" text-color="grey-8" icon="person">
-                <img v-if="props.value" :src="props.value" />
+            <q-avatar size="28px" color="grey-4" text-color="grey-8">
+                <img v-if="props.value" :src="props.value" style="width: 100%; height: 100%; object-fit: cover" />
+                <q-icon v-else name="person" />
             </q-avatar>
         </q-td>
         ''',
