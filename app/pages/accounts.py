@@ -28,6 +28,14 @@ def _show_filters() -> bool:
     return role_switcher.current_role() != Role.SCHEDULER_ADMIN
 
 
+def _show_name_filter() -> bool:
+    """Name search is an Admin/PowerAdmin/SuperAdmin tool - a plain User only ever
+    sees their own single account row, so a search box adds nothing for them.
+    is_at_least() already treats SuperAdmin as included alongside the listed roles.
+    """
+    return role_switcher.is_at_least(Role.ADMIN, Role.POWER_ADMIN)
+
+
 def _show_kingdom_alliance_filter() -> bool:
     """Kingdom/Alliance dropdowns are SuperAdmin-only (per requirements) - regular
     Admin/PowerAdmin already only ever see their own alliance's accounts... except
@@ -97,7 +105,7 @@ def _filtered_accounts() -> list[Account]:
             )
             rows = [a for a in rows if a.id in matching_account_ids]
 
-    name = get_text_filter(FILTER_NAME_KEY).strip().lower()
+    name = get_text_filter(FILTER_NAME_KEY).strip().lower() if _show_name_filter() else ""
     if name:
         rows = [
             a for a in rows
@@ -129,9 +137,13 @@ def account_filters() -> None:
         return
 
     show_kingdom_alliance = _show_kingdom_alliance_filter()
+    show_name = _show_name_filter()
     kingdom_id = get_id_filter(FILTER_KINGDOM_KEY, _kingdom_ids_from_players(players)) if show_kingdom_alliance else None
     alliance_id = get_id_filter(FILTER_ALLIANCE_KEY, {p.alliance_id for p in players}) if show_kingdom_alliance else None
-    name = get_text_filter(FILTER_NAME_KEY)
+    name = get_text_filter(FILTER_NAME_KEY) if show_name else ""
+
+    if not show_kingdom_alliance and not show_name:
+        return  # nothing left to render for this role (e.g. a plain User)
 
     # Each dropdown's options come from the *other* active filter, mirroring
     # app/pages/players.py's player_filters() - selecting a Kingdom narrows Alliance
@@ -141,9 +153,8 @@ def account_filters() -> None:
     alliance_option_ids = {p.alliance_id for p in _players_matching(kingdom_id=kingdom_id)}
 
     with ui.row().classes("w-full items-end gap-2"):
-        name_input = ui.input("Search Account Name", value=name) \
-            .props("outlined dense clearable").classes("w-56")
-
+        # Order: Kingdom, Alliance, then Name - Kingdom/Alliance only render for
+        # SuperAdmin, so this puts the coarse-to-fine structured filters first.
         kingdom_select = alliance_select = None
         if show_kingdom_alliance:
             kingdom_options = {k.id: k.name for k in kingdoms if k.id in kingdom_option_ids}
@@ -155,6 +166,11 @@ def account_filters() -> None:
             alliance_select = ui.select(
                 alliance_options, label="Alliance", value=alliance_id,
             ).props("outlined dense clearable").classes("w-48")
+
+        name_input = None
+        if show_name:
+            name_input = ui.input("Search Account Name", value=name) \
+                .props("outlined dense clearable").classes("w-56")
 
         def _apply_structured_change() -> None:
             _reconcile_filters()
@@ -173,7 +189,8 @@ def account_filters() -> None:
             set_filter(FILTER_NAME_KEY, name_input.value or "")
             account_table.refresh()  # name search never changes dropdown options
 
-        name_input.on_value_change(on_name_change)
+        if name_input is not None:
+            name_input.on_value_change(on_name_change)
         if kingdom_select is not None:
             kingdom_select.on_value_change(on_kingdom_change)
         if alliance_select is not None:
@@ -234,10 +251,9 @@ def account_table() -> None:
         ''',
     )
     if can_edit:
-        table.add_slot(
-            "body-cell-account_name",
-            '<q-td><a class="text-primary">{{ props.value }}</a></q-td>',
-        )
+        # Plain text, no link styling - matches app/pages/players.py and every other
+        # list page, none of which style a column as a fake link either. Row-click-to-
+        # edit isn't wired up yet, so there's nothing to visually signal as clickable.
         ui.label("(Admin/PowerAdmin: click a row in the real app to edit or remove an account)") \
             .classes("text-xs text-grey-5")
 
