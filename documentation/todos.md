@@ -35,7 +35,7 @@
 
 
 ## Time Slots page
-1. Add Player Avattar to the list display
+1. ✅ Add Player Avattar to the list display
 2. filters need to synchronize with each other
 3. additional filters for admins
    1. account for all admin types ???
