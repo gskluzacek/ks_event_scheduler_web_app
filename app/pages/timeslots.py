@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from nicegui import ui
 
 from app.components import layout, role_switcher
-from app.models.sample_data import events, players, time_slots
+from app.models.sample_data import accounts, events, players, time_slots
 from app.models.schema import Player, Role, TimeSlot, TimeSlotType, next_id
 from app.utils.filters import get_id_filter, get_sort_state, get_text_filter, set_filter, set_sort_state
 
@@ -126,12 +126,20 @@ def _clear_slot_filters() -> None:
 def slot_table() -> None:
     is_scheduler = role_switcher.is_at_least(Role.SCHEDULER_ADMIN, Role.POWER_ADMIN)
     filtered = _filtered_slots()
+    account_by_id = {a.id: a for a in accounts}
     rows = []
     for s in filtered:
         player = next((p for p in players if p.id == s.player_id), None)
         event = next((e for e in events if e.id == s.event_id), None)
+        # Guild-specific avatar if the player has one; else the account's global Discord
+        # avatar; else None (renders as a generic person icon - same fallback chain as
+        # the Player Management table).
+        account = account_by_id.get(player.account_id) if player else None
+        avatar_url = (player.discord_guild_avatar_url if player else None) or \
+            (account.discord_avatar_url if account else None)
         rows.append({
             "id": s.id,
+            "avatar_url": avatar_url,
             "player": player.kingshot_name if player else "?",
             "event": event.name if event else "?",
             "start": s.local_start.strftime("%H:%M"),
@@ -140,6 +148,7 @@ def slot_table() -> None:
             "needs_review": "Yes" if s.needs_review else "",
         })
     columns = [
+        {"name": "avatar_url", "label": "", "field": "avatar_url"},
         {"name": "player", "label": "Player", "field": "player", "sortable": True},
         {"name": "event", "label": "Event", "field": "event", "sortable": True},
         {"name": "start", "label": "Local Start", "field": "start", "sortable": True},
@@ -152,6 +161,19 @@ def slot_table() -> None:
         columns=columns, rows=rows, row_key="id",
         pagination={"sortBy": sort_by, "descending": sort_desc, "rowsPerPage": 0},
     ).classes("w-full").props("flat bordered")
+    # Custom cell: q-avatar with the player's Discord image if we have one, else a generic
+    # icon. Same slot pattern as app/pages/accounts.py and app/pages/players.py.
+    table.add_slot(
+        "body-cell-avatar_url",
+        '''
+        <q-td :props="props">
+            <q-avatar size="28px" color="grey-4" text-color="grey-8">
+                <img v-if="props.value" :src="props.value" style="width: 100%; height: 100%; object-fit: cover" />
+                <q-icon v-else name="person" />
+            </q-avatar>
+        </q-td>
+        ''',
+    )
 
     def on_pagination_change(e) -> None:
         payload = e.args[0] if isinstance(e.args, list) and e.args else e.args

@@ -46,6 +46,11 @@
 
 
 
+## Data Model
+
+1. instead of complely forming the Avatar URLs for the account and player, we should just store the needed details in 
+   the data model and have the UI handle forming the URLs and downloading the imnages. 
+
 ---
 
 # DONE
