@@ -219,6 +219,8 @@ players: list[Player] = [
         town_center_level="27",
         roles=[Role.USER],
     ),
+
+
     Player(
         id=next_id(),
         account_id=accounts[1].id,
@@ -266,20 +268,205 @@ players: list[Player] = [
 ]
 
 events: list[Event] = [
-    Event(next_id(), alliances[0].id, "Kingdom vs Kingdom", "Cross-kingdom war window",
-          begin_date=date.today() + timedelta(days=1), end_date=date.today() + timedelta(days=3),
-          qty_to_schedule=1, scheduled_start=datetime.utcnow() + timedelta(days=2), is_published=True),
-    Event(next_id(), alliances[0].id, "Bear Trap", "Weekly bear trap coordination",
-          begin_date=date.today(), end_date=date.today() + timedelta(days=7), qty_to_schedule=2),
-    Event(next_id(), alliances[1].id, "Castle Battle", "Alliance castle defense",
-          begin_date=date.today(), end_date=date.today() + timedelta(days=14)),
+    Event(
+        id=next_id(),
+        alliance_id=alliances[0].id,
+        name="[BT] Bear Hunt",
+        description="EOD bear trap",
+        begin_date=date.today() - timedelta(days=28),
+        end_date=date.today() + timedelta(days=28),
+        qty_to_schedule=2,
+        is_published=True,
+    ),
+    Event(
+        id=next_id(),
+        alliance_id=alliances[0].id,
+        name="[KvK] Kingdom vs Kingdom",
+        description="Cross-kingdom war window",
+        begin_date=date.today() + timedelta(days=1),
+        end_date=date.today() + timedelta(days=3),
+        scheduled_start=datetime.utcnow() + timedelta(days=2),
+    ),
+    Event(
+        id=next_id(),
+        alliance_id=alliances[1].id,
+        name="[CB] Castle Battle",
+        description="Alliance castle defense",
+        begin_date=date.today(),
+        end_date=date.today() + timedelta(days=14),
+    ),
+    Event(
+        id=next_id(),
+        alliance_id=alliances[1].id,
+        name="[SS] Swordland Showdown",
+        description="Win the ancient Sword of Kings and rule the realm",
+        begin_date=date.today(),
+        end_date=date.today() + timedelta(days=14),
+    ),
+    Event(
+        id=next_id(),
+        alliance_id=alliances[1].id,
+        name="[TAC] Tri-Alliance Clash",
+        description="Maritime battle for the Temple Of Tides",
+        begin_date=date.today(),
+        end_date=date.today() + timedelta(days=14),
+    ),
+    Event(
+        id=next_id(),
+        alliance_id=alliances[1].id,
+        name="[ACh] Alliance Championship",
+        description="Three lane round-robin 5 round tournament",
+        begin_date=date.today(),
+        end_date=date.today() + timedelta(days=14),
+    ),
+    Event(
+        id=next_id(),
+        alliance_id=alliances[1].id,
+        name="[SncB] Sanctuary Battle",
+        description="Defeat the Cesares Rebels in the Sanctuary",
+        begin_date=date.today(),
+        end_date=date.today() + timedelta(days=14),
+    ),
 ]
 
 time_slots: list[TimeSlot] = [
-    TimeSlot(next_id(), players[0].id, events[0].id,
-             time(18, 0), time(20, 0), time_slot_type=TimeSlotType.PREFERRED),
-    TimeSlot(next_id(), players[1].id, events[0].id,
-             time(19, 0), time(21, 0), time_slot_type=TimeSlotType.ACCEPTABLE, needs_review=True),
-    TimeSlot(next_id(), players[2].id, events[1].id,
-             time(6, 0), time(7, 0), time_slot_type=TimeSlotType.AVOID),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[0].id,
+        event_id=events[0].id,
+        local_start=time(8, 0),
+        local_end=time(17, 15),
+        time_slot_type=TimeSlotType.AVOID,
+    ),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[0].id,
+        event_id=events[0].id,
+        local_start=time(17, 15),
+        local_end=time(18, 0),
+        time_slot_type=TimeSlotType.ACCEPTABLE,
+    ),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[0].id,
+        event_id=events[0].id,
+        local_start=time(18, 0),
+        local_end=time(19, 0),
+        time_slot_type=TimeSlotType.AVOID,
+    ),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[0].id,
+        event_id=events[0].id,
+        local_start=time(19, 0),
+        local_end=time(00, 0),
+    ),
+
+    TimeSlot(
+        id=next_id(),
+        player_id=players[1].id,
+        event_id=events[0].id,
+        local_start=time(19, 0),
+        local_end=time(21, 0),
+        time_slot_type=TimeSlotType.ACCEPTABLE,
+        needs_review=True,
+    ),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[1].id,
+        event_id=events[0].id,
+        local_start=time(22, 0),
+        local_end=time(23, 0),
+        time_slot_type=TimeSlotType.PREFERRED,
+        needs_review=True,
+    ),
+
+    TimeSlot(
+        id=next_id(),
+        player_id=players[2].id,
+        event_id=events[1].id,
+        local_start=time(6, 0),
+        local_end=time(7, 0),
+        time_slot_type=TimeSlotType.AVOID,
+    ),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[2].id,
+        event_id=events[1].id,
+        local_start=time(7, 0),
+        local_end=time(8, 0),
+        time_slot_type=TimeSlotType.ACCEPTABLE,
+    ),
+
+
+
+
+
+    TimeSlot(
+        id=next_id(),
+        player_id=players[8].id,
+        event_id=events[1].id,
+        local_start=time(6, 0),
+        local_end=time(7, 0),
+        time_slot_type=TimeSlotType.AVOID,
+    ),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[8].id,
+        event_id=events[1].id,
+        local_start=time(7, 0),
+        local_end=time(8, 0),
+        time_slot_type=TimeSlotType.ACCEPTABLE,
+    ),
+
+    TimeSlot(
+        id=next_id(),
+        player_id=players[9].id,
+        event_id=events[1].id,
+        local_start=time(6, 0),
+        local_end=time(7, 0),
+        time_slot_type=TimeSlotType.AVOID,
+    ),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[9].id,
+        event_id=events[1].id,
+        local_start=time(7, 0),
+        local_end=time(8, 0),
+        time_slot_type=TimeSlotType.ACCEPTABLE,
+    ),
+
+    TimeSlot(
+        id=next_id(),
+        player_id=players[10].id,
+        event_id=events[1].id,
+        local_start=time(6, 0),
+        local_end=time(7, 0),
+        time_slot_type=TimeSlotType.AVOID,
+    ),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[10].id,
+        event_id=events[1].id,
+        local_start=time(7, 0),
+        local_end=time(8, 0),
+        time_slot_type=TimeSlotType.ACCEPTABLE,
+    ),
+
+    TimeSlot(
+        id=next_id(),
+        player_id=players[11].id,
+        event_id=events[1].id,
+        local_start=time(6, 0),
+        local_end=time(7, 0),
+        time_slot_type=TimeSlotType.AVOID,
+    ),
+    TimeSlot(
+        id=next_id(),
+        player_id=players[11].id,
+        event_id=events[1].id,
+        local_start=time(7, 0),
+        local_end=time(8, 0),
+        time_slot_type=TimeSlotType.ACCEPTABLE,
+    ),
 ]
