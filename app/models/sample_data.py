@@ -131,9 +131,9 @@ accounts.append(
 
 players: list[Player] = [
     Player(
-        id=next_id(),
-        account_id=accounts[0].id,
-        alliance_id=alliances[0].id,
+        id=next_id(),                   # index 0
+        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        alliance_id=alliances[0].id,    # alliance: [SHD] Shadow Stooges
         kingshot_id="229989369",
         kingshot_name="Dark Chocolate",
         discord_nickname="The Dark 'Chocolate' Knight",
@@ -143,9 +143,9 @@ players: list[Player] = [
         discord_guild_avatar_url="https://cdn.discordapp.com/guilds/1517613215138189444/users/835177531904098380/avatars/d5cc62b7313b1f2ea7092bdd9c306653.webp?size=2048",
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[0].id,
-        alliance_id=alliances[0].id,
+        id=next_id(),                   # index 1
+        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        alliance_id=alliances[0].id,    # alliance: [SHD] Shadow Stooges
         kingshot_id="229989370",
         kingshot_name="Milk Chocolate",
         discord_nickname="Count Chocula",
@@ -154,9 +154,9 @@ players: list[Player] = [
         roles=[Role.USER],
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[0].id,
-        alliance_id=alliances[1].id,
+        id=next_id(),                   # index 2
+        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
         kingshot_id="229989371",
         kingshot_name="Mint Chocolate",
         discord_nickname="Luck O' The Irish",
@@ -165,9 +165,9 @@ players: list[Player] = [
         roles=[Role.USER],
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[0].id,
-        alliance_id=alliances[1].id,
+        id=next_id(),                   # index 3
+        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
         kingshot_id="229989372",
         kingshot_name="White Chocolate",
         discord_nickname="I'm not a bigot, honestly",
@@ -176,9 +176,9 @@ players: list[Player] = [
         roles=[Role.USER],
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[0].id,
-        alliance_id=alliances[1].id,
+        id=next_id(),                   # index 4
+        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
         kingshot_id="229989373",
         kingshot_name="Unsweetened Chocolate",
         discord_nickname="Just a bitter Old Man",
@@ -187,9 +187,9 @@ players: list[Player] = [
         roles=[Role.USER],
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[0].id,
-        alliance_id=alliances[2].id,
+        id=next_id(),                   # index 5
+        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
         kingshot_id="229989374",
         kingshot_name="German Chocolate",
         discord_nickname="Not from Germany",
@@ -198,9 +198,9 @@ players: list[Player] = [
         roles=[Role.USER],
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[0].id,
-        alliance_id=alliances[2].id,
+        id=next_id(),                   # index 6
+        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
         kingshot_id="229989375",
         kingshot_name="Mexican Chocolate",
         discord_nickname="Ima SOOO Spicy ¡Olé!",
@@ -209,9 +209,9 @@ players: list[Player] = [
         roles=[Role.USER],
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[0].id,
-        alliance_id=alliances[2].id,
+        id=next_id(),                   # index 7
+        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
         kingshot_id="229989376",
         kingshot_name="Hazelnut Chocolate",
         discord_nickname="Better than Nutella",
@@ -222,9 +222,9 @@ players: list[Player] = [
 
 
     Player(
-        id=next_id(),
-        account_id=accounts[1].id,
-        alliance_id=alliances[3].id,
+        id=next_id(),                   # index 8
+        account_id=accounts[1].id,      # account: discord_user: marla_singer_2026
+        alliance_id=alliances[3].id,    # alliance: [UMP] Umbra Pickles
         kingshot_id="999666333",
         kingshot_name="Mouthy Marla",
         discord_nickname="Bride of Tyler Durden",
@@ -233,9 +233,9 @@ players: list[Player] = [
         roles=[Role.ADMIN],
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[2].id,
-        alliance_id=alliances[3].id,
+        id=next_id(),                   # index 9
+        account_id=accounts[2].id,      # account: discord_user: tyler_durden_58
+        alliance_id=alliances[3].id,    # alliance: [UMP] Umbra Pickles
         kingshot_id="222555888",
         kingshot_name="Jack's Angry Splean",
         discord_nickname="Tyler Durden",
@@ -244,9 +244,9 @@ players: list[Player] = [
         roles=[Role.SCHEDULER_ADMIN],
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[3].id,
-        alliance_id=alliances[4].id,
+        id=next_id(),                   # index 10
+        account_id=accounts[3].id,      # account: discord_user: mr_roboto_1983
+        alliance_id=alliances[4].id,    # alliance: [sOS] Hospitable Canteen
         kingshot_id="111444777",
         kingshot_name="Desert Moon",
         discord_nickname="Dennis DeYoung Poser",
@@ -255,9 +255,9 @@ players: list[Player] = [
         roles=[Role.USER],
     ),
     Player(
-        id=next_id(),
-        account_id=accounts[4].id,
-        alliance_id=alliances[4].id,
+        id=next_id(),                   # index 11
+        account_id=accounts[4].id,      # account: manual_user: max_manual_planck
+        alliance_id=alliances[4].id,    # alliance: [sOS] Hospitable Canteen
         kingshot_id="314159265",
         kingshot_name="Schrödinger’s Cat",
         discord_nickname=None,
@@ -285,7 +285,7 @@ events: list[Event] = [
         description="Cross-kingdom war window",
         begin_date=date.today() + timedelta(days=1),
         end_date=date.today() + timedelta(days=3),
-        scheduled_start=datetime.utcnow() + timedelta(days=2),
+        scheduled_start=datetime.utcnow() + timedelta(days=2),  # noqa
     ),
     Event(
         id=next_id(),
@@ -332,7 +332,7 @@ events: list[Event] = [
 time_slots: list[TimeSlot] = [
     TimeSlot(
         id=next_id(),
-        player_id=players[0].id,
+        player_id=players[0].id,                # player: Dark Chocolate
         event_id=events[0].id,
         local_start=time(8, 0),
         local_end=time(17, 15),
@@ -340,7 +340,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[0].id,
+        player_id=players[0].id,                # player: Dark Chocolate
         event_id=events[0].id,
         local_start=time(17, 15),
         local_end=time(18, 0),
@@ -348,7 +348,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[0].id,
+        player_id=players[0].id,                # player: Dark Chocolate
         event_id=events[0].id,
         local_start=time(18, 0),
         local_end=time(19, 0),
@@ -356,7 +356,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[0].id,
+        player_id=players[0].id,                # player: Dark Chocolate
         event_id=events[0].id,
         local_start=time(19, 0),
         local_end=time(00, 0),
@@ -364,7 +364,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[1].id,
+        player_id=players[1].id,                # player: Milk Chocolate
         event_id=events[0].id,
         local_start=time(19, 0),
         local_end=time(21, 0),
@@ -373,7 +373,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[1].id,
+        player_id=players[1].id,                # player: Milk Chocolate
         event_id=events[0].id,
         local_start=time(22, 0),
         local_end=time(23, 0),
@@ -383,7 +383,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[2].id,
+        player_id=players[2].id,                # player: Mint Chocolate
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -391,7 +391,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[2].id,
+        player_id=players[2].id,                # player: Mint Chocolate
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),
@@ -404,7 +404,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[8].id,
+        player_id=players[8].id,                # player: Mouthy Marla
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -412,7 +412,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[8].id,
+        player_id=players[8].id,                # player: Mouthy Marla
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),
@@ -421,7 +421,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[9].id,
+        player_id=players[9].id,                # player: Jack's Angry Splean
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -429,7 +429,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[9].id,
+        player_id=players[9].id,                # player: Jack's Angry Splean
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),
@@ -438,7 +438,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[10].id,
+        player_id=players[10].id,               # player: Desert Moon
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -446,7 +446,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[10].id,
+        player_id=players[10].id,               # player: Desert Moon
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),
@@ -455,7 +455,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[11].id,
+        player_id=players[11].id,               # player: Schrödinger’s Cat
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -463,7 +463,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[11].id,
+        player_id=players[11].id,               # player: Schrödinger’s Cat
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),
