@@ -12,7 +12,7 @@
    1. account page (adims only?), clicking the short cut action would take the user to the player page and display the 
       players for that account.
    2. player page, clicking the short cut action would take the user to the time slots page and display the time slots for that player.
-
+6. instead of a generic person icon for the avatars when there isn't a global or guild avatar url, can we use 2 Initials instead from the user name instead?
 
 
 ## Accounts page
@@ -52,17 +52,49 @@
 
 ## Time Slots page
 1. ✅ Add Player Avattar to the list display
-2. only sheduling admins and power admins should be able to see time slots for other accounts' players.
-3. scheduling admins should only see time slots for players in their alliance.
+2. ✅ only sheduling admins and power admins should be able to see time slots for other accounts' players.
+3. ✅ scheduling admins should only see time slots for players in their alliance.
 4. additional filters for admins
-   1. account for schedule admins & superAdmins
-   2. kingdom & alliance for superAdmins only
-5. filter order should be (left to right) kingdom, alliance, account, player, event, needs review, 
-6. filters need to synchronize with each other. for example, if an admin selects an alliance, then the account filter should only show accounts that have players in that alliance, and the player filter should only show players that are in those alliances, etc.
+   1. ✅ account for schedule admins & superAdmins
+   2. ✅ kingdom & alliance for superAdmins only
+5. ✅ filter order should be (left to right) kingdom, alliance, account, player, event, needs review, 
+6. ⚠️filters need to synchronize with each other. for example, if an admin selects an alliance, then the account 
+   filter should only show accounts that have players in that alliance, and the player filter should only show 
+   players that are in those alliances, etc.
+7. when in superAdmin mode, for filters of account and player (at least), it would be nice if we had filter drop 
+   downs that could accept keystroke input and auto filter the results as you typed as well as allow you to select 
+   a value from the drop down.
 
 ### questions
 * what does each type of admin get to do on the page?
 
+### issues
+* (initial display) when the role of SuperAdmin is sellected, the alliance filter should only have the following values, 
+  but its also showing \[UFC] Ultimate Fighting Clan incorrectly, and excluding \[STN] Silent Thunder 
+  and Nonsense correctly:
+  * \[SHD] Shadow Stooges
+  * \[PHX] Dark Phoenix Rising
+  * \[UMP] Umbra Pickles
+  * \[sOS] Hospitable Canteen
+* (initial display) role: SuperAdmin & player filter is incorrectly showing the following 
+  * incorrectly
+    * White Chocolate
+    * Unsweetened Chocolate
+    * German Chocolate
+    * Mexican Chocolate
+    * Hazelnut Chocolate
+  * correctly
+    * Dark Chocolate
+    * Milk Chocolate
+    * Mint Chocolate
+    * Mouthy Marla
+    * Jack's Angry Splean
+    * Desert Moon
+    * Schrödinger’s Cat
+* select `gskluzacek` from account filter, it should only show players for that account that also have events. 
+  but its just showing all that account's players.
+* select `[PHX] Dark Phoenix Rising` from alliance filter, it should only show players for that alliance that also have events. 
+  but its just showing all that alliance's players.
 
 
 ## Data Model
