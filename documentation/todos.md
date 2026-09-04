@@ -16,14 +16,14 @@
 
 
 ## Accounts page
-1. add the discord_global_name column to the list display - maybe in parens after the account name
-2. add an "Add Account" button that allows admin users to add manual accounts
+1. ✅ add the discord_global_name column to the list display - maybe in parens after the account name
+2. ✅ add an "Add Account" button that allows admin users to add manual accounts
 3. filter capabilties (admins only)
    1. add a search box for account name that auto filters the results as you type.
    2. add drop downs for kingdom and alliance for superAdmins, which would show account for any users that have players in the selected kingdom/alliance.
 
 ### questions
-* what is the text color of the account name blue?
+* ✅ what is the text color of the account name blue? removed blue color but it was to indicate that the row was clickable.
 
 
 
@@ -31,6 +31,16 @@
 ## Players page
 1. when filtering by name, the other filters show all values for the account instead of just the values that in the current results.
 2. add time slot count column to the list display
+3. is it posible to use a tree view? the 1st level would be the account name, and the 2nd level would be the players for that account.  
+   This would allow for a more compact display of the data, and would also allow for easier navigation between accounts and players.
+4. when an admin, power admin, or super admin adds a player, 
+   1. we need to ensure that there is the capability to select the account that the player is being added to
+   2. and then use that account to set the alliance of the player being added
+   3. when adding a player to a manual account, we need to skip the guild validation step.
+
+### questions
+* why do we need alliance on the player data classs when we have account_id, and the account has the alliance?
+
 
 
 
