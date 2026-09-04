@@ -34,43 +34,43 @@ kingdoms: list[Kingdom] = [
 # actual bot-token guild-membership check end to end (see auth/discord_guild.py).
 alliances: list[Alliance] = [
     Alliance(
-        id=next_id(),
+        id=next_id(),           # index 0
         name="[SHD] Shadow Stooges",
         kingdom_id=kingdoms[0].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Dark Lords of the Shadow Realm"
     ),
     Alliance(
-        id=next_id(),
-        name="[PHX] Dark Phoenix Rising]",
+        id=next_id(),           # index 1
+        name="[PHX] Dark Phoenix Rising",
         kingdom_id=kingdoms[0].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Mister Mojo Risin'"
     ),
     Alliance(
-        id=next_id(),
-        name="[UFC] Ultimate Fighting Clan]",
+        id=next_id(),           # index 2
+        name="[UFC] Ultimate Fighting Clan",
         kingdom_id=kingdoms[1].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Drink Clamoto Juice and Live!"
     ),
     Alliance(
-        id=next_id(),
-        name="[UMP] Umbra Pickles]",
+        id=next_id(),           # index 3
+        name="[UMP] Umbra Pickles",
         kingdom_id=kingdoms[1].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="NOT Magic: The Gathering"
     ),
     Alliance(
-        id=next_id(),
-        name="[sOS] Hospitable Canteen]",
+        id=next_id(),           # index 4
+        name="[sOS] Hospitable Canteen",
         kingdom_id=kingdoms[1].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Same Old Shit"
     ),
     Alliance(
-        id=next_id(),
-        name="[STN] Silent Thunder and Nonsense]",
+        id=next_id(),           # index 5
+        name="[STN] Silent Thunder and Nonsense",
         kingdom_id=kingdoms[1].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Silent But Not So Deadly"

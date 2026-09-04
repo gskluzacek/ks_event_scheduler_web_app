@@ -19,11 +19,17 @@
 1. ✅ add the discord_global_name column to the list display - maybe in parens after the account name
 2. ✅ add an "Add Account" button that allows admin users to add manual accounts
 3. filter capabilties (admins only)
-   1. add a search box for account name that auto filters the results as you type.
-   2. add drop downs for kingdom and alliance for superAdmins, which would show account for any users that have players in the selected kingdom/alliance.
+   1. ✅ add a search box for account name that auto filters the results as you type.
+   2. ✅ add drop downs for kingdom and alliance for superAdmins, which would show account for any users that have players in the selected kingdom/alliance.
+4. for admin and power admin users, only accounts that have players in their alliance.
 
 ### questions
 * ✅ what is the text color of the account name blue? removed blue color but it was to indicate that the row was clickable.
+
+### notes / comments
+* accounts don't directly have an alliance, they instead have players that have an alliance. So, if an account that has 
+  players in 2 different alliances, then admins from both alliances would be able to edit that account. This is a know 
+  feature, that perhaps is unexpected, it should not be a problem.
 
 
 
@@ -46,10 +52,13 @@
 
 ## Time Slots page
 1. ✅ Add Player Avattar to the list display
-2. filters need to synchronize with each other
-3. additional filters for admins
-   1. account for all admin types ???
+2. only sheduling admins and power admins should be able to see time slots for other accounts' players.
+3. scheduling admins should only see time slots for players in their alliance.
+4. additional filters for admins
+   1. account for schedule admins & superAdmins
    2. kingdom & alliance for superAdmins only
+5. filter order should be (left to right) kingdom, alliance, account, player, event, needs review, 
+6. filters need to synchronize with each other. for example, if an admin selects an alliance, then the account filter should only show accounts that have players in that alliance, and the player filter should only show players that are in those alliances, etc.
 
 ### questions
 * what does each type of admin get to do on the page?
