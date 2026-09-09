@@ -7,20 +7,18 @@ web_app_requirements.md: pick Kingdom -> Alliance -> Verify Guild Membership
 """
 from __future__ import annotations
 
-from nicegui import ui
+from nicegui import app, ui
 
 from app.auth.discord_guild import MembershipResult, build_guild_avatar_url, verify_guild_membership
 from app.components import layout, role_switcher
 from app.models.sample_data import accounts, alliances, kingdoms, players, time_slots
 from app.models.schema import Account, AccountType, Player, Role, TOWN_CENTER_LEVELS, next_id
-from app.utils.filters import get_id_filter, get_sort_state, get_text_filter, set_filter, set_sort_state
+from app.utils.filters import get_id_filter, get_text_filter, set_filter
 
 FILTER_KINGDOM_KEY = "players_filter_kingdom_id"
 FILTER_ALLIANCE_KEY = "players_filter_alliance_id"
 FILTER_ACCOUNT_KEY = "players_filter_account_id"
 FILTER_NAME_KEY = "players_filter_name"
-SORT_BY_KEY = "players_sort_by"
-SORT_DESC_KEY = "players_sort_desc"
 
 
 def _visible_players() -> list[Player]:
@@ -228,20 +226,15 @@ def _clear_player_filters() -> None:
     player_table.refresh()
 
 
-_PLAYER_AVATAR_SLOT = '''
-    <q-td :props="props">
-        <q-avatar size="28px" color="grey-4" text-color="grey-8">
-            <img v-if="props.value" :src="props.value" style="width: 100%; height: 100%; object-fit: cover" />
-            <q-icon v-else name="person" />
-        </q-avatar>
-    </q-td>
-'''
+ACCOUNTS_PAGE_KEY = "players_accounts_page"
+EXPANDED_ACCOUNTS_KEY = "players_expanded_account_ids"
+ACCOUNTS_PAGE_SIZE = 5
 
 
-def _player_rows(rows: list[Player], *, show_roles: bool) -> tuple[list[dict], list[dict]]:
-    """Builds the (rows, columns) pair for a player table/sub-table. Shared by both
-    the flat (non-admin) view and each per-account group in the admin tree view, so
-    the column set/order and cell formatting only need to be defined once.
+def _player_rows(rows: list[Player], *, show_roles: bool) -> list[dict]:
+    """Builds one display-ready dict per player (avatar url, resolved kingdom/alliance
+    names, formatted power, etc.) - shared by every player card so the field set/
+    formatting is defined exactly once.
     """
     alliance_by_id = {a.id: a for a in alliances}
     kingdom_name_by_id = {k.id: k.name for k in kingdoms}
@@ -250,11 +243,11 @@ def _player_rows(rows: list[Player], *, show_roles: bool) -> tuple[list[dict], l
     for slot in time_slots:
         slot_count_by_player_id[slot.player_id] = slot_count_by_player_id.get(slot.player_id, 0) + 1
 
-    table_rows = []
+    result = []
     for p in rows:
         account = account_by_id.get(p.account_id)
         # Guild-specific avatar if the player has one; else the account's global Discord
-        # avatar; else None (renders as a generic person icon - see the table slot below).
+        # avatar; else None (renders as a generic person icon).
         avatar_url = p.discord_guild_avatar_url or (account.discord_avatar_url if account else None)
         row = {
             "id": p.id,
@@ -272,67 +265,90 @@ def _player_rows(rows: list[Player], *, show_roles: bool) -> tuple[list[dict], l
         }
         if show_roles:
             row["roles"] = ", ".join(r.value for r in p.roles)
-        table_rows.append(row)
-
-    columns = [
-        {"name": "avatar_url", "label": "", "field": "avatar_url"},
-        {"name": "kingdom", "label": "Kingdom", "field": "kingdom", "sortable": True},
-        {"name": "alliance", "label": "Alliance", "field": "alliance", "sortable": True},
-        {"name": "kingshot_id", "label": "Kingshot ID", "field": "kingshot_id"},
-        {"name": "kingshot_name", "label": "Kingshot Name", "field": "kingshot_name", "sortable": True},
-        {"name": "tc_level", "label": "TC Level", "field": "tc_level", "sortable": True},
-        {"name": "power", "label": "Power", "field": "power", "sortable": True},
-        {"name": "timeslot_count", "label": "Time Slots", "field": "timeslot_count", "sortable": True},
-        {"name": "discord_nickname", "label": "Discord Nickname", "field": "discord_nickname", "sortable": True},
-    ]
-    if show_roles:
-        columns.append({"name": "roles", "label": "Roles", "field": "roles"})
-    return table_rows, columns
+        result.append(row)
+    return result
 
 
-def _render_player_table(
-    rows: list[Player], *, show_roles: bool, row_key_prefix: str, sort_state_keys: tuple[str, str] | None = None,
-) -> None:
-    """Renders one players ui.table (used for both the flat view and each
-    per-account group). `row_key_prefix` keeps row_key values unique when the
-    same player somehow renders in more than one Quasar table on the page.
+def _get_expanded_account_ids() -> set[int]:
+    return set(app.storage.user.get(EXPANDED_ACCOUNTS_KEY, []))
+
+
+def _get_accounts_page() -> int:
+    return app.storage.user.get(ACCOUNTS_PAGE_KEY, 1)
+
+
+def _render_player_card(row: dict, *, show_roles: bool) -> None:
+    """One 'child card' - a player's details laid out so nothing needs a horizontal
+    scrollbar: a grid that wraps to the card's width instead of adding columns.
     """
-    table_rows, columns = _player_rows(rows, show_roles=show_roles)
-    for row in table_rows:
-        row["id"] = f"{row_key_prefix}-{row['id']}"
+    with ui.card().classes("w-full").props("flat bordered"):
+        with ui.row().classes("items-start gap-3 w-full no-wrap"):
+            with ui.avatar(size="40px", color="grey-4", text_color="grey-8"):
+                if row["avatar_url"]:
+                    ui.image(row["avatar_url"]).style("object-fit: cover")
+                else:
+                    ui.icon("person")
+            with ui.column().classes("gap-1 grow"):
+                with ui.row().classes("items-center gap-2"):
+                    ui.label(row["kingshot_name"]).classes("font-bold")
+                    ui.badge(f"TC {row['tc_level']}").props("color=grey-6")
+                with ui.grid(columns=3).classes("gap-x-4 gap-y-0 text-sm w-full"):
+                    ui.label(f"Kingdom: {row['kingdom']}")
+                    ui.label(f"Alliance: {row['alliance']}")
+                    ui.label(f"Kingshot ID: {row['kingshot_id']}")
+                    ui.label(f"Power: {row['power']}")
+                    ui.label(f"Time Slots: {row['timeslot_count']}")
+                    ui.label(f"Discord: {row['discord_nickname'] or '—'}")
+                    if show_roles:
+                        ui.label(f"Roles: {row['roles']}")
 
-    pagination = {"rowsPerPage": 0}
-    if sort_state_keys:
-        sort_by, sort_desc = get_sort_state(*sort_state_keys)
-        pagination.update({"sortBy": sort_by, "descending": sort_desc})
 
-    table = ui.table(
-        columns=columns, rows=table_rows, row_key="id", pagination=pagination,
-    ).classes("w-full").props("flat bordered")
-    # Custom cell: q-avatar with the guild/global Discord image if we have one, else a
-    # generic icon. ui.table has no Python-level "image column" option, so this is one of
-    # the rare legitimate uses of a Quasar template string (nicegui_llms.md > Named Slots).
-    table.add_slot("body-cell-avatar_url", _PLAYER_AVATAR_SLOT)
+def _render_account_card(account: Account, account_rows: list[dict], *, show_roles: bool) -> None:
+    """The 'parent card': account-level header (name, time zone, Discord username,
+    player count) plus a disclosure toggle that shows/hides a scrollable stack of
+    that account's player cards underneath - see Greg's mockup.
+    """
+    expanded = account.id in _get_expanded_account_ids()
 
-    if sort_state_keys:
-        by_key, desc_key = sort_state_keys
+    with ui.card().classes("w-full"):
+        with ui.row().classes("items-center justify-between w-full"):
+            with ui.row().classes("items-center gap-4"):
+                ui.icon("account_circle").classes("text-2xl")
+                ui.label(account.account_name).classes("font-bold text-lg")
+                ui.label(account.time_zone).classes("text-sm text-grey-6")
+                if account.account_type == AccountType.DISCORD_USER:
+                    ui.label(f"@{account.discord_username}").classes("text-sm text-grey-6")
+                else:
+                    ui.label("Manual account").classes("text-sm text-grey-6")
+                ui.badge(str(len(account_rows))).props("color=primary")
+                ui.label("player" + ("s" if len(account_rows) != 1 else "")).classes("text-sm text-grey-6")
+            toggle_button = ui.button(icon="expand_less" if expanded else "expand_more").props("flat round dense")
 
-        def on_pagination_change(e) -> None:
-            payload = e.args[0] if isinstance(e.args, list) and e.args else e.args
-            if not isinstance(payload, dict):
-                return
-            set_sort_state(by_key, desc_key, payload.get("sortBy"), bool(payload.get("descending", False)))
+        with ui.scroll_area().classes("h-72 w-full") as child_area:
+            with ui.column().classes("w-full gap-2"):
+                for row in account_rows:
+                    _render_player_card(row, show_roles=show_roles)
+        child_area.set_visibility(expanded)
 
-        table.on("update:pagination", on_pagination_change)
+        def toggle(acct_id=account.id, area=child_area, btn=toggle_button) -> None:
+            ids = _get_expanded_account_ids()
+            now_expanded = acct_id not in ids
+            if now_expanded:
+                ids.add(acct_id)
+            else:
+                ids.discard(acct_id)
+            app.storage.user[EXPANDED_ACCOUNTS_KEY] = list(ids)
+            area.set_visibility(now_expanded)
+            btn.props(f"icon={'expand_less' if now_expanded else 'expand_more'}")
+
+        toggle_button.on_click(toggle)
 
 
 @ui.refreshable
 def player_table() -> None:
     filtered = _filtered_players()
-    show_account = role_switcher.is_any_admin()
-    # Roles column is about role *management*, which is a PowerAdmin-only capability
-    # (see web_app_requirements.md > Account Management #3) - so it's hidden for the
-    # more common viewer roles (User, Admin, SchedulerAdmin) rather than shown to all.
+    # Roles are about role *management*, a PowerAdmin-only capability (see
+    # web_app_requirements.md > Account Management #3) - hidden for other roles.
     show_roles = role_switcher.is_at_least(Role.POWER_ADMIN)
 
     if not filtered:
@@ -340,37 +356,31 @@ def player_table() -> None:
             ui.label("No players match the current filters.").classes("text-sm text-grey-5")
         return
 
-    if not show_account:
-        # Regular users only ever see their own account's players anyway, so grouping
-        # by account would just be one group - a flat table stays simpler here.
-        _render_player_table(filtered, show_roles=show_roles, row_key_prefix="flat", sort_state_keys=(SORT_BY_KEY, SORT_DESC_KEY))
-        return
+    account_by_id = {a.id: a for a in accounts}
+    rows_by_account: dict[int, list[dict]] = {}
+    for row in _player_rows(filtered, show_roles=show_roles):
+        player = next(p for p in filtered if p.id == row["id"])
+        rows_by_account.setdefault(player.account_id, []).append(row)
 
-    # Admin-type viewers: group players by account into a collapsible tree
-    # (account -> players), per Greg's request for a more compact, navigable
-    # display when many accounts/players are visible at once.
-    account_name_by_id = {a.id: a.account_name for a in accounts}
-    by_account: dict[int, list[Player]] = {}
-    for p in filtered:
-        by_account.setdefault(p.account_id, []).append(p)
+    account_ids = sorted(rows_by_account, key=lambda aid: account_by_id[aid].account_name.lower())
 
-    # Any active filter narrows the result set enough that auto-expanding every
-    # matching group is helpful; with no filters, default to collapsed for compactness.
-    any_filter_active = bool(
-        get_id_filter(FILTER_KINGDOM_KEY, _visible_kingdom_ids())
-        or get_id_filter(FILTER_ALLIANCE_KEY, _visible_alliance_ids())
-        or get_id_filter(FILTER_ACCOUNT_KEY, _visible_account_ids())
-        or get_text_filter(FILTER_NAME_KEY).strip()
-    )
+    # Paginate the account (parent) cards - simpler and more predictable than a
+    # fixed-height outer scroll panel, and works for 1 account or 1000 alike.
+    total_pages = max(1, -(-len(account_ids) // ACCOUNTS_PAGE_SIZE))  # ceil division
+    page = min(max(1, _get_accounts_page()), total_pages)
+    start = (page - 1) * ACCOUNTS_PAGE_SIZE
+    page_account_ids = account_ids[start:start + ACCOUNTS_PAGE_SIZE]
 
-    for account_id in sorted(by_account, key=lambda aid: account_name_by_id.get(aid, "").lower()):
-        account_players = by_account[account_id]
-        account_name = account_name_by_id.get(account_id, "?")
-        with ui.expansion(
-            f"{account_name} ({len(account_players)} player{'s' if len(account_players) != 1 else ''})",
-            icon="person", value=any_filter_active,
-        ).classes("w-full").props("dense-toggle"):
-            _render_player_table(account_players, show_roles=show_roles, row_key_prefix=f"acct{account_id}")
+    for account_id in page_account_ids:
+        _render_account_card(account_by_id[account_id], rows_by_account[account_id], show_roles=show_roles)
+
+    if total_pages > 1:
+        def on_page_change(e) -> None:
+            app.storage.user[ACCOUNTS_PAGE_KEY] = e.value
+            player_table.refresh()
+
+        with ui.row().classes("w-full justify-center"):
+            ui.pagination(min=1, max=total_pages, value=page, direction_links=True, on_change=on_page_change)
 
 
 def _set_enabled(element, enabled: bool) -> None:
