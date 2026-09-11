@@ -355,6 +355,8 @@ def account_table() -> None:
     if not filtered:
         if _visible_accounts():
             ui.label("No accounts match the current filters.").classes("text-sm text-grey-5")
+        else:
+            ui.label("⚠️ No data available").classes("text-sm text-grey-5")
         return
 
     # A plain User/SchedulerAdmin only ever has one visible account (see
@@ -487,10 +489,19 @@ def _open_view_account_dialog(account: Account) -> None:
     dialog.open()
 
 
-async def _do_discord_refresh(account: Account, remaining_label: ui.label) -> None:
+async def _do_discord_refresh(account: Account, remaining_label: ui.label, on_updated) -> None:
     """Handler for the Edit dialog's "Refresh from Discord" button. Rate-limited
     per acting-user-per-target-account (see app/utils/rate_limit.py) regardless
     of whether the actor is the account owner or an Admin refreshing someone else.
+
+    NOTE: this deliberately does NOT call account_table.refresh(). The dialog this
+    button lives in was opened from inside account_table's refreshable container
+    (via the account card's Edit button), and NiceGUI ties the dialog's lifetime to
+    a "canary" element created in that same container (see nicegui/elements/dialog.py) -
+    refreshing account_table while the dialog is still open destroys that canary and
+    the dialog closes out from under the user. `on_updated` instead refreshes just
+    the dialog's own detail-view section; the underlying card list picks up the
+    change next time it's refreshed (e.g. when the dialog is closed).
     """
     allowed, remaining, retry_after = check_and_record(
         "discord_refresh", str(account.id), limit=REFRESH_RATE_LIMIT, window=REFRESH_RATE_WINDOW
@@ -512,7 +523,7 @@ async def _do_discord_refresh(account: Account, remaining_label: ui.label) -> No
         account.update_account_id = role_switcher.current_account_id()
         account.updated_at = datetime.utcnow()
         remaining_label.set_text(f"{remaining} refresh(es) left in this 4-hour window.")
-        account_table.refresh()
+        on_updated()
         ui.notify("Discord details refreshed.", type="positive")
     elif result.outcome == RefreshOutcome.NO_CREDENTIALS:
         ui.notify(
@@ -530,9 +541,16 @@ async def _do_discord_refresh(account: Account, remaining_label: ui.label) -> No
 
 def _open_edit_account_dialog(account: Account) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
-        # Part 1: identical read-only detail view to the View dialog.
+        # Part 1: identical read-only detail view to the View dialog, wrapped in its
+        # own refreshable so a Discord refresh can update it in place without
+        # touching account_table (see _do_discord_refresh's note on why).
         ui.label("Edit Account").classes("text-lg font-bold")
-        _render_account_details(account)
+
+        @ui.refreshable
+        def details_view() -> None:
+            _render_account_details(account)
+
+        details_view()
 
         # Part 2: the actual editable controls.
         ui.separator().classes("my-3")
@@ -550,7 +568,7 @@ def _open_edit_account_dialog(account: Account) -> None:
                 .classes("text-xs text-grey-6")
             ui.button(
                 "Refresh from Discord", icon="refresh",
-                on_click=lambda: _do_discord_refresh(account, remaining_label),
+                on_click=lambda: _do_discord_refresh(account, remaining_label, details_view.refresh),
             ).props("outlined dense no-caps")
 
         ui.label("Time Zone").classes("text-sm text-grey-6 mt-2")
@@ -577,4 +595,7 @@ def _open_edit_account_dialog(account: Account) -> None:
             ui.button("Cancel", on_click=dialog.close).props("flat")
             ui.button("Save", on_click=submit).props("unelevated color=primary")
 
+    # Catches every way the dialog can close (Save, Cancel, Esc, backdrop click) so a
+    # Discord refresh that was never explicitly "Saved" still shows up in the card list.
+    dialog.on_value_change(lambda e: account_table.refresh() if not e.value else None)
     dialog.open()

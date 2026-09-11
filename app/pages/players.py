@@ -7,6 +7,9 @@ web_app_requirements.md: pick Kingdom -> Alliance -> Verify Guild Membership
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
+from dateutil import tz as dateutil_tz
 from nicegui import app, ui
 
 from app.auth.discord_guild import MembershipResult, build_guild_avatar_url, verify_guild_membership
@@ -27,6 +30,41 @@ def _visible_players() -> list[Player]:
         return players
     account_id = role_switcher.current_account_id()
     return [p for p in players if p.account_id == account_id]
+
+
+def _can_edit_player(player: Player) -> bool:
+    """Everyone can edit their own player (per requirements: "All users ...
+    view, edit and delete their players"); Admin/PowerAdmin can also edit
+    others. Mirrors app/pages/accounts.py's _can_edit_account() - is_at_least()
+    already folds SuperAdmin in.
+    """
+    return player.account_id == role_switcher.current_account_id() or role_switcher.is_at_least(
+        Role.ADMIN, Role.POWER_ADMIN
+    )
+
+
+def _resolve_account_name(account_id: int | None, owner_account: Account) -> str:
+    """Resolves an audit column (create_account_id/update_account_id) to a display
+    name - mirrors app/pages/accounts.py's version. A None value means the player
+    was added via the Player Joining Alliance flow by its own owning account,
+    rather than by an admin acting on someone else's behalf.
+    """
+    if account_id is None:
+        return f"{owner_account.account_name} (self-registered)"
+    match = next((a for a in accounts if a.id == account_id), None)
+    return match.account_name if match else f"Unknown (id={account_id})"
+
+
+def _format_dt(dt: datetime | None, iana_name: str) -> str:
+    """Renders a UTC-stored timestamp in the given IANA time zone - mirrors
+    app/pages/accounts.py's version.
+    """
+    if dt is None:
+        return "—"
+    aware = dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+    local_tz = dateutil_tz.gettz(iana_name)
+    localized = aware.astimezone(local_tz) if local_tz else aware
+    return localized.strftime("%Y-%m-%d %H:%M %Z")
 
 
 def _visible_alliance_ids() -> set[int]:
@@ -277,7 +315,7 @@ def _get_accounts_page() -> int:
     return app.storage.user.get(ACCOUNTS_PAGE_KEY, 1)
 
 
-def _render_player_card(row: dict, *, show_roles: bool) -> None:
+def _render_player_card(player: Player, row: dict, *, show_roles: bool) -> None:
     """One 'child card' - a player's details laid out so nothing needs a horizontal
     scrollbar: a grid that wraps to the card's width instead of adding columns.
     """
@@ -301,9 +339,15 @@ def _render_player_card(row: dict, *, show_roles: bool) -> None:
                     ui.label(f"Discord: {row['discord_nickname'] or '—'}")
                     if show_roles:
                         ui.label(f"Roles: {row['roles']}")
+            with ui.row().classes("gap-1"):
+                ui.button("View", icon="visibility", on_click=lambda pl=player: _open_view_player_dialog(pl)) \
+                    .props("flat dense no-caps")
+                if _can_edit_player(player):
+                    ui.button("Edit", icon="edit", on_click=lambda pl=player: _open_edit_player_dialog(pl)) \
+                        .props("flat dense no-caps color=primary")
 
 
-def _render_account_card(account: Account, account_rows: list[dict], *, show_roles: bool) -> None:
+def _render_account_card(account: Account, account_rows: list[tuple[Player, dict]], *, show_roles: bool) -> None:
     """The 'parent card': account-level header (name, time zone, Discord username,
     player count) plus a disclosure toggle that shows/hides a scrollable stack of
     that account's player cards underneath - see Greg's mockup.
@@ -326,8 +370,8 @@ def _render_account_card(account: Account, account_rows: list[dict], *, show_rol
 
         with ui.scroll_area().classes("h-72 w-full") as child_area:
             with ui.column().classes("w-full gap-2"):
-                for row in account_rows:
-                    _render_player_card(row, show_roles=show_roles)
+                for player, row in account_rows:
+                    _render_player_card(player, row, show_roles=show_roles)
         child_area.set_visibility(expanded)
 
         def toggle(acct_id=account.id, area=child_area, btn=toggle_button) -> None:
@@ -354,13 +398,15 @@ def player_table() -> None:
     if not filtered:
         if _visible_players():
             ui.label("No players match the current filters.").classes("text-sm text-grey-5")
+        else:
+            ui.label("⚠️ No data available").classes("text-sm text-grey-5")
         return
 
     account_by_id = {a.id: a for a in accounts}
-    rows_by_account: dict[int, list[dict]] = {}
+    rows_by_account: dict[int, list[tuple[Player, dict]]] = {}
     for row in _player_rows(filtered, show_roles=show_roles):
         player = next(p for p in filtered if p.id == row["id"])
-        rows_by_account.setdefault(player.account_id, []).append(row)
+        rows_by_account.setdefault(player.account_id, []).append((player, row))
 
     account_ids = sorted(rows_by_account, key=lambda aid: account_by_id[aid].account_name.lower())
 
@@ -381,6 +427,199 @@ def player_table() -> None:
 
         with ui.row().classes("w-full justify-center"):
             ui.pagination(min=1, max=total_pages, value=page, direction_links=True, on_change=on_page_change)
+
+
+def _render_field(label: str, value: str) -> None:
+    with ui.row().classes("w-full items-baseline gap-2"):
+        ui.label(label).classes("text-sm text-grey-6 w-40 shrink-0")
+        ui.label(value).classes("text-sm")
+
+
+def _render_copyable_field(label: str, value: str | None) -> None:
+    """Like _render_field, but truncates a long value (e.g. a Discord avatar
+    URL), shows the full value in a hover tooltip, and adds a small button
+    that copies the untruncated value to the clipboard. Mirrors
+    app/pages/accounts.py's version.
+    """
+    with ui.row().classes("w-full items-center gap-2"):
+        ui.label(label).classes("text-sm text-grey-6 w-40 shrink-0")
+        if not value:
+            ui.label("—").classes("text-sm")
+            return
+        truncated = value if len(value) <= 30 else value[:30] + "…"
+        ui.label(truncated).classes("text-sm").tooltip(value)
+
+        def copy_url(u: str = value) -> None:
+            ui.clipboard.write(u)
+            ui.notify("Copied to clipboard", type="positive")
+
+        ui.button(icon="content_copy", on_click=copy_url).props("flat dense round size=sm")
+
+
+def _render_player_details(player: Player) -> None:
+    """The read-only "detail view" body: avatar + name header, then every
+    Player column. Shared verbatim between the View dialog and part 1 of
+    the Edit dialog, so the two always stay in sync.
+    """
+    account = next((a for a in accounts if a.id == player.account_id), None)
+    alliance = next((a for a in alliances if a.id == player.alliance_id), None)
+    kingdom_name = next((k.name for k in kingdoms if alliance and k.id == alliance.kingdom_id), "?")
+    avatar_url = player.discord_guild_avatar_url or (account.discord_avatar_url if account else None)
+
+    with ui.row().classes("items-center gap-3 w-full"):
+        with ui.avatar(size="48px", color="grey-4", text_color="grey-8"):
+            if avatar_url:
+                ui.image(avatar_url).style("object-fit: cover")
+            else:
+                ui.icon("person")
+        ui.label(player.kingshot_name).classes("text-base font-bold")
+
+    with ui.column().classes("w-full gap-1"):
+        _render_field("Player ID", str(player.id))
+        _render_field("Account", account.account_name if account else f"Unknown (id={player.account_id})")
+        _render_field("Kingdom", kingdom_name)
+        _render_field("Alliance", alliance.name if alliance else "?")
+        _render_field("Kingshot ID", player.kingshot_id)
+        _render_field("Kingshot Name", player.kingshot_name)
+        _render_field("Power", f"{player.power:,}")
+        _render_field("Town Center Level", player.town_center_level)
+        _render_field("Roles", ", ".join(r.value for r in player.roles) or "—")
+
+        ui.separator().classes("my-3")
+        ui.label("Discord").classes("text-xs font-bold text-grey-6 uppercase")
+        _render_field("Discord Nickname", player.discord_nickname or "—")
+        _render_copyable_field("Discord Guild Avatar URL", player.discord_guild_avatar_url)
+
+        ui.separator().classes("my-3")
+        ui.label("Audit").classes("text-xs font-bold text-grey-6 uppercase")
+        owner_time_zone = account.time_zone if account else "UTC"
+        _render_field("Created By", _resolve_account_name(player.create_account_id, account) if account else "—")
+        _render_field("Created At", _format_dt(player.created_at, owner_time_zone))
+        _render_field("Updated By", _resolve_account_name(player.update_account_id, account) if account else "—")
+        _render_field("Updated At", _format_dt(player.updated_at, owner_time_zone))
+
+
+def _open_view_player_dialog(player: Player) -> None:
+    """Read-only detail view - every Player column, with the two audit-trail
+    account IDs resolved to names per the requirements.
+    """
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
+        ui.label("Player Details").classes("text-lg font-bold")
+        _render_player_details(player)
+
+        with ui.row().classes("w-full justify-end"):
+            ui.button("Close", on_click=dialog.close).props("flat")
+
+    dialog.open()
+
+
+async def _do_discord_player_sync(player: Player, status_label: ui.label, on_updated) -> None:
+    """Handler for the Edit dialog's "Sync from Discord" button. Re-verifies guild
+    membership (bot-token based, same call used at Add Player time) and writes the
+    fresh nickname/guild avatar back onto the player.
+
+    NOTE: deliberately does NOT call player_table.refresh() - see
+    app/pages/accounts.py's _do_discord_refresh() for why refreshing the outer
+    card list while this dialog is open would close the dialog out from under
+    the user. `on_updated` refreshes just the dialog's own detail-view section.
+    """
+    account = next((a for a in accounts if a.id == player.account_id), None)
+    alliance = next((a for a in alliances if a.id == player.alliance_id), None)
+    if account is None or account.account_type != AccountType.DISCORD_USER:
+        ui.notify("This player's account has no Discord identity to sync from.", type="warning")
+        return
+    if alliance is None:
+        ui.notify("Could not resolve this player's alliance.", type="negative")
+        return
+
+    status_label.classes(remove="text-negative text-positive")
+    status_label.set_text("Checking guild membership…")
+    check = await verify_guild_membership(alliance.discord_guild_id, account.discord_user_id)
+
+    if check.result == MembershipResult.VERIFIED:
+        player.discord_nickname = check.nickname
+        player.discord_guild_avatar_url = build_guild_avatar_url(
+            alliance.discord_guild_id, account.discord_user_id, check.avatar_hash
+        )
+        player.update_account_id = role_switcher.current_account_id()
+        player.updated_at = datetime.utcnow()
+        status_label.classes(add="text-positive")
+        status_label.set_text(f"✓ Synced{f' — nick: {check.nickname}' if check.nickname else ''}")
+        on_updated()
+        ui.notify("Discord nickname/avatar synced.", type="positive")
+    elif check.result == MembershipResult.NOT_A_MEMBER:
+        status_label.classes(add="text-negative")
+        status_label.set_text("✗ Not a member of this guild.")
+    elif check.result == MembershipResult.BOT_FORBIDDEN:
+        status_label.classes(add="text-negative")
+        status_label.set_text("✗ Bot credentials are invalid (403).")
+    elif check.result == MembershipResult.SERVER_ERROR:
+        status_label.classes(add="text-negative")
+        status_label.set_text("✗ Discord returned a server error — bot may have been removed.")
+    else:
+        status_label.classes(add="text-negative")
+        status_label.set_text(f"✗ Unexpected error: {check.detail}")
+
+
+def _open_edit_player_dialog(player: Player) -> None:
+    account = next((a for a in accounts if a.id == player.account_id), None)
+    is_discord_account = account is not None and account.account_type == AccountType.DISCORD_USER
+
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
+        # Part 1: identical read-only detail view to the View dialog, wrapped in its
+        # own refreshable so a Discord sync can update it in place without touching
+        # player_table (see _do_discord_player_sync's note on why).
+        ui.label("Edit Player").classes("text-lg font-bold")
+
+        @ui.refreshable
+        def details_view() -> None:
+            _render_player_details(player)
+
+        details_view()
+
+        # Part 2: the actual editable controls.
+        ui.separator().classes("my-3")
+        ui.label("Update").classes("text-xs font-bold text-grey-6 uppercase")
+
+        kingshot_name_input = ui.input("Kingshot Name", value=player.kingshot_name) \
+            .props("outlined").classes("w-full")
+        power_input = ui.number("Power", value=player.power, min=0).props("outlined").classes("w-full")
+        tc_select = ui.select(TOWN_CENTER_LEVELS, label="Town Center Level", value=player.town_center_level) \
+            .props("outlined").classes("w-full")
+
+        ui.label("Discord nickname and guild avatar are set from Discord, not edited directly.") \
+            .classes("text-xs text-grey-6 mt-2")
+        if is_discord_account:
+            status_label = ui.label().classes("text-xs")
+            ui.button(
+                "Sync from Discord", icon="sync",
+                on_click=lambda: _do_discord_player_sync(player, status_label, details_view.refresh),
+            ).props("outlined dense no-caps")
+        else:
+            ui.label("Manual account - no Discord identity to sync.").classes("text-xs text-grey-6")
+
+        def submit() -> None:
+            if not kingshot_name_input.value:
+                ui.notify("Kingshot name is required", type="warning")
+                return
+            player.kingshot_name = kingshot_name_input.value
+            player.power = int(power_input.value or 0)
+            player.town_center_level = tc_select.value or player.town_center_level
+            player.update_account_id = role_switcher.current_account_id()
+            player.updated_at = datetime.utcnow()
+            dialog.close()
+            player_filters.refresh()
+            player_table.refresh()
+            ui.notify("Player updated", type="positive")
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save", on_click=submit).props("unelevated color=primary")
+
+    # Catches every way the dialog can close (Save, Cancel, Esc, backdrop click) so a
+    # Discord sync that was never explicitly "Saved" still shows up in the card list.
+    dialog.on_value_change(lambda e: player_table.refresh() if not e.value else None)
+    dialog.open()
 
 
 def _set_enabled(element, enabled: bool) -> None:
