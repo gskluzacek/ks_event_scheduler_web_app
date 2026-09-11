@@ -99,6 +99,14 @@ class Account:
     discord_username: str | None = None
     discord_global_name: str | None = None
     discord_avatar_url: str | None = None
+    # OAuth tokens - populated at registration/login for DISCORD_USER accounts only.
+    # Needed to support the "refresh from Discord" action (app/pages/accounts.py)
+    # without asking the user to log in again every time. NOTE: plain fields are
+    # fine for this in-memory mock phase; once there's a real DB these should be
+    # encrypted at rest rather than stored as plaintext columns.
+    discord_access_token: str | None = None
+    discord_refresh_token: str | None = None
+    discord_token_expires_at: datetime | None = None
     is_super_admin: bool = False
     # Audit columns. create_account_id is None for self-registered (Discord OAuth) accounts;
     # it's set to the admin's account_id for manually-created accounts.

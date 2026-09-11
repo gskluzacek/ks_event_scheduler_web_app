@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from nicegui import app, ui
 
+from app.auth.discord_oauth import RefreshOutcome, refresh_discord_identity
 from app.components import layout, role_switcher
 from app.components.timezone_select import TimeZoneSelector
 from app.models.sample_data import accounts, alliances, kingdoms, players
 from app.models.schema import Account, AccountType, Player, Role, next_id
 from app.utils.filters import get_id_filter, get_text_filter, set_filter
+from app.utils.rate_limit import check_and_record
+
+REFRESH_RATE_LIMIT = 10
+REFRESH_RATE_WINDOW = timedelta(hours=4)
 
 FILTER_KINGDOM_KEY = "accounts_filter_kingdom_id"
 FILTER_ALLIANCE_KEY = "accounts_filter_alliance_id"
@@ -22,6 +29,31 @@ def _visible_accounts() -> list[Account]:
     if role_switcher.is_at_least(Role.ADMIN, Role.POWER_ADMIN):
         return accounts
     return [a for a in accounts if a.id == role_switcher.current_account_id()]
+
+
+def _can_edit_account(account_id: int) -> bool:
+    """Everyone can edit their own account (per requirements: "All users ...
+    view and edit their personal information"); Admin/PowerAdmin can also
+    edit other accounts. is_at_least() already folds SuperAdmin in.
+    """
+    return account_id == role_switcher.current_account_id() or role_switcher.is_at_least(
+        Role.ADMIN, Role.POWER_ADMIN
+    )
+
+
+def _resolve_account_name(account_id: int | None, owner: Account) -> str:
+    """Resolves an audit column (create_account_id/update_account_id) to a display
+    name. A None create_account_id means the account self-registered via Discord
+    OAuth (see schema.py's Account docstring) - so it's the owning account's own name.
+    """
+    if account_id is None:
+        return f"{owner.account_name} (self-registered)"
+    match = next((a for a in accounts if a.id == account_id), None)
+    return match.account_name if match else f"Unknown (id={account_id})"
+
+
+def _format_dt(dt: datetime | None) -> str:
+    return dt.strftime("%Y-%m-%d %H:%M UTC") if dt else "—"
 
 
 def _show_filters() -> bool:
@@ -231,6 +263,7 @@ def _account_card_rows(rows: list[Account], *, show_admin_columns: bool) -> list
 
 
 def _render_account_card(row: dict, *, show_admin_columns: bool) -> None:
+    account = next(a for a in accounts if a.id == row["id"])
     with ui.card().classes("w-full").props("flat bordered"):
         with ui.row().classes("items-center gap-3 w-full no-wrap"):
             with ui.avatar(size="40px", color="grey-4", text_color="grey-8"):
@@ -250,6 +283,12 @@ def _render_account_card(row: dict, *, show_admin_columns: bool) -> None:
                 with ui.row().classes("gap-x-6 gap-y-0 text-sm text-grey-7"):
                     ui.label(f"Players: {row['player_count']}")
                     ui.label(f"Time Zone: {row['time_zone']}")
+            with ui.row().classes("gap-1"):
+                ui.button("View", icon="visibility", on_click=lambda a=account: _open_view_account_dialog(a)) \
+                    .props("flat dense no-caps")
+                if _can_edit_account(account.id):
+                    ui.button("Edit", icon="edit", on_click=lambda a=account: _open_edit_account_dialog(a)) \
+                        .props("flat dense no-caps color=primary")
 
 
 def _get_page_size() -> int:
@@ -300,7 +339,6 @@ def _render_pagination_footer(*, page: int, page_size: int, total: int) -> None:
 
 @ui.refreshable
 def account_table() -> None:
-    can_edit = role_switcher.is_at_least(Role.ADMIN, Role.POWER_ADMIN)
     show_admin_columns = role_switcher.is_any_admin()
     filtered = _filtered_accounts()
 
@@ -324,13 +362,6 @@ def account_table() -> None:
 
     if show_pagination:
         _render_pagination_footer(page=page, page_size=page_size, total=len(filtered))
-
-    if can_edit:
-        # Plain text, no link styling - matches app/pages/players.py and every other
-        # list page. Card-click-to-edit isn't wired up yet, so there's nothing to
-        # visually signal as clickable.
-        ui.label("(Admin/PowerAdmin: click a card in the real app to edit or remove an account)") \
-            .classes("text-xs text-grey-5")
 
 
 def _open_add_account_dialog() -> None:
@@ -367,5 +398,163 @@ def _open_add_account_dialog() -> None:
         with ui.row().classes("w-full justify-end gap-2"):
             ui.button("Cancel", on_click=dialog.close).props("flat")
             ui.button("Add Account", on_click=submit).props("unelevated color=primary")
+
+    dialog.open()
+
+
+def _render_field(label: str, value: str) -> None:
+    with ui.row().classes("w-full items-baseline gap-2"):
+        ui.label(label).classes("text-sm text-grey-6 w-40 shrink-0")
+        ui.label(value).classes("text-sm")
+
+
+def _open_view_account_dialog(account: Account) -> None:
+    """Read-only detail view - every Account column, with the two audit-trail
+    account IDs resolved to names per the requirements.
+    """
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
+        ui.label("Account Details").classes("text-lg font-bold")
+
+        with ui.row().classes("items-center gap-3 w-full"):
+            with ui.avatar(size="48px", color="grey-4", text_color="grey-8"):
+                if account.discord_avatar_url:
+                    ui.image(account.discord_avatar_url).style("object-fit: cover")
+                else:
+                    ui.icon("person")
+            ui.label(account.account_name).classes("text-base font-bold")
+
+        with ui.column().classes("w-full gap-1"):
+            _render_field("Account ID", str(account.id))
+            _render_field("Account Type", account.account_type.value)
+            _render_field("Account Name", account.account_name)
+            _render_field("Time Zone", account.time_zone)
+            _render_field("Super Admin", "Yes" if account.is_super_admin else "No")
+
+            ui.separator()
+            ui.label("Discord").classes("text-xs font-bold text-grey-6 uppercase")
+            _render_field("Discord User ID", account.discord_user_id or "—")
+            _render_field("Discord Username", account.discord_username or "—")
+            _render_field("Discord Global Name", account.discord_global_name or "—")
+            _render_field("Discord Avatar URL", account.discord_avatar_url or "—")
+
+            ui.separator()
+            ui.label("Audit").classes("text-xs font-bold text-grey-6 uppercase")
+            _render_field("Created By", _resolve_account_name(account.create_account_id, account))
+            _render_field("Created At", _format_dt(account.created_at))
+            _render_field("Updated By", _resolve_account_name(account.update_account_id, account))
+            _render_field("Updated At", _format_dt(account.updated_at))
+
+        with ui.row().classes("w-full justify-end"):
+            ui.button("Close", on_click=dialog.close).props("flat")
+
+    dialog.open()
+
+
+async def _do_discord_refresh(account: Account, remaining_label: ui.label) -> None:
+    """Handler for the Edit dialog's "Refresh from Discord" button. Rate-limited
+    per acting-user-per-target-account (see app/utils/rate_limit.py) regardless
+    of whether the actor is the account owner or an Admin refreshing someone else.
+    """
+    allowed, remaining, retry_after = check_and_record(
+        "discord_refresh", str(account.id), limit=REFRESH_RATE_LIMIT, window=REFRESH_RATE_WINDOW
+    )
+    if not allowed:
+        minutes = max(1, int(retry_after.total_seconds() // 60))
+        ui.notify(f"Refresh limit reached for this account - try again in ~{minutes} min.", type="warning")
+        return
+
+    result = await refresh_discord_identity(account.discord_user_id, account.discord_refresh_token)
+
+    if result.outcome == RefreshOutcome.SUCCESS:
+        account.discord_username = result.username
+        account.discord_global_name = result.global_name
+        account.discord_avatar_url = result.avatar_url
+        account.discord_access_token = result.access_token
+        account.discord_refresh_token = result.refresh_token
+        account.discord_token_expires_at = result.expires_at
+        account.update_account_id = role_switcher.current_account_id()
+        account.updated_at = datetime.utcnow()
+        remaining_label.set_text(f"{remaining} refresh(es) left in this 4-hour window.")
+        account_table.refresh()
+        ui.notify("Discord details refreshed.", type="positive")
+    elif result.outcome == RefreshOutcome.NO_CREDENTIALS:
+        ui.notify(
+            "No stored Discord credentials for this account - the user needs to log in "
+            "again via Discord before this can be refreshed.", type="warning",
+        )
+    elif result.outcome == RefreshOutcome.REAUTH_REQUIRED:
+        ui.notify(
+            "Discord authorization has expired or was revoked - the user needs to log "
+            "in again.", type="negative",
+        )
+    else:
+        ui.notify(f"Could not refresh from Discord: {result.detail}", type="negative")
+
+
+def _open_edit_account_dialog(account: Account) -> None:
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
+        ui.label("Edit Account").classes("text-lg font-bold")
+
+        # Account name: editable only for manual accounts; Discord accounts derive
+        # their name from Discord, so it's read-only + shown alongside a refresh option.
+        name_input = None
+        if account.account_type == AccountType.MANUAL_USER:
+            name_input = ui.input("Account Name", value=account.account_name) \
+                .props("outlined").classes("w-full")
+        else:
+            _render_field("Account Name", account.account_name)
+
+            with ui.row().classes("items-center gap-3 w-full"):
+                with ui.avatar(size="40px", color="grey-4", text_color="grey-8"):
+                    if account.discord_avatar_url:
+                        ui.image(account.discord_avatar_url).style("object-fit: cover")
+                    else:
+                        ui.icon("person")
+                with ui.column().classes("gap-0"):
+                    ui.label(account.discord_global_name or "—").classes("text-sm")
+                    ui.label(f"@{account.discord_username}" if account.discord_username else "—") \
+                        .classes("text-xs text-grey-6")
+
+            remaining_label = ui.label("Discord username, name, and avatar cannot be edited directly.") \
+                .classes("text-xs text-grey-6")
+            ui.button(
+                "Refresh from Discord", icon="refresh",
+                on_click=lambda: _do_discord_refresh(account, remaining_label),
+            ).props("outlined dense no-caps")
+
+        ui.separator()
+        ui.label("Time Zone").classes("text-sm text-grey-6")
+        tz_selector = TimeZoneSelector(value=account.time_zone)
+
+        ui.separator()
+        with ui.column().classes("w-full gap-1"):
+            _render_field("Account ID", str(account.id))
+            _render_field("Account Type", account.account_type.value)
+            _render_field("Super Admin", "Yes" if account.is_super_admin else "No")
+            _render_field("Created By", _resolve_account_name(account.create_account_id, account))
+            _render_field("Created At", _format_dt(account.created_at))
+            _render_field("Updated By", _resolve_account_name(account.update_account_id, account))
+            _render_field("Updated At", _format_dt(account.updated_at))
+
+        def submit() -> None:
+            if name_input is not None and not name_input.value:
+                ui.notify("Account name is required", type="warning")
+                return
+            if not tz_selector.value:
+                ui.notify("Select a time zone", type="warning")
+                return
+            if name_input is not None:
+                account.account_name = name_input.value
+            account.time_zone = tz_selector.value
+            account.update_account_id = role_switcher.current_account_id()
+            account.updated_at = datetime.utcnow()
+            dialog.close()
+            account_filters.refresh()
+            account_table.refresh()
+            ui.notify("Account updated", type="positive")
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save", on_click=submit).props("unelevated color=primary")
 
     dialog.open()

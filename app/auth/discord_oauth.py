@@ -20,6 +20,9 @@ from __future__ import annotations
 
 import os
 import secrets
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum, auto
 
 import httpx
 from dotenv import load_dotenv
@@ -73,6 +76,87 @@ async def fetch_discord_user(access_token: str) -> dict:
         response = await client.get(USER_URL, headers=headers)
         response.raise_for_status()
         return response.json()
+
+
+def token_expiry_from(token_data: dict) -> datetime:
+    """Discord's token response gives `expires_in` seconds, not an absolute time."""
+    return datetime.utcnow() + timedelta(seconds=token_data.get("expires_in", 0))
+
+
+async def refresh_access_token(refresh_token: str) -> dict:
+    """Exchanges a stored refresh token for a new access token.
+
+    Discord issues a NEW refresh_token on every use and invalidates the old
+    one - callers must persist token_data['refresh_token'] from the response,
+    not just re-use the one that was passed in.
+    """
+    data = {
+        "client_id": DISCORD_CLIENT_ID,
+        "client_secret": DISCORD_CLIENT_SECRET,
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.post(TOKEN_URL, data=data, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+
+class RefreshOutcome(Enum):
+    SUCCESS = auto()
+    NO_CREDENTIALS = auto()   # account has no stored refresh_token - never logged in via OAuth here
+    REAUTH_REQUIRED = auto()  # Discord rejected the refresh_token (revoked/expired) - user must log in again
+    ERROR = auto()            # network error or other unexpected failure
+
+
+@dataclass
+class RefreshResult:
+    outcome: RefreshOutcome
+    username: str | None = None
+    global_name: str | None = None
+    avatar_url: str | None = None
+    access_token: str | None = None
+    refresh_token: str | None = None
+    expires_at: datetime | None = None
+    detail: str | None = None
+
+
+async def refresh_discord_identity(discord_user_id: str | None, refresh_token: str | None) -> RefreshResult:
+    """Full refresh flow for the "Refresh from Discord" account action:
+    exchange the stored refresh_token for a new access token, then re-fetch
+    the user's identity fields with it. Callers are responsible for actually
+    writing the returned fields back onto the Account.
+    """
+    if not discord_user_id or not refresh_token:
+        return RefreshResult(RefreshOutcome.NO_CREDENTIALS)
+
+    try:
+        token_data = await refresh_access_token(refresh_token)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 400:
+            # invalid_grant - Discord's standard response for a revoked/expired refresh token
+            return RefreshResult(RefreshOutcome.REAUTH_REQUIRED, detail=str(exc))
+        return RefreshResult(RefreshOutcome.ERROR, detail=str(exc))
+    except httpx.HTTPError as exc:
+        return RefreshResult(RefreshOutcome.ERROR, detail=str(exc))
+
+    try:
+        discord_user = await fetch_discord_user(token_data["access_token"])
+    except httpx.HTTPError as exc:
+        return RefreshResult(RefreshOutcome.ERROR, detail=str(exc))
+
+    return RefreshResult(
+        RefreshOutcome.SUCCESS,
+        username=discord_user.get("username"),
+        global_name=discord_user.get("global_name"),
+        avatar_url=build_avatar_url(str(discord_user["id"]), discord_user.get("avatar")),
+        access_token=token_data["access_token"],
+        # Discord rotates the refresh token on every use - fall back to the old one
+        # only if the response is missing it, which shouldn't normally happen.
+        refresh_token=token_data.get("refresh_token", refresh_token),
+        expires_at=token_expiry_from(token_data),
+    )
 
 
 AVATAR_SIZE = 2048  # full-res; list/table thumbnails scale it down via CSS, not a smaller CDN fetch

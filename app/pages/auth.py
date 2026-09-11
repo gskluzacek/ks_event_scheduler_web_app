@@ -27,6 +27,7 @@ from app.models.schema import Account, AccountType, next_id
 
 STATE_KEY = "oauth_state"
 PENDING_DISCORD_USER_KEY = "pending_discord_user"
+PENDING_DISCORD_TOKEN_KEY = "pending_discord_token"
 
 
 @ui.page("/register")
@@ -66,7 +67,12 @@ def register_fastapi_routes() -> None:
         except Exception as exc:  # noqa: BLE001 - surfacing any Discord/network failure to the user
             return RedirectResponse(f"/register?error={type(exc).__name__}")
 
+        # Stash the tokens alongside the identity - register_complete_page() needs them
+        # to populate Account.discord_access_token/discord_refresh_token so the
+        # "Refresh from Discord" action (app/pages/accounts.py) works later without
+        # asking the user to log in again.
         app.storage.user[PENDING_DISCORD_USER_KEY] = discord_user
+        app.storage.user[PENDING_DISCORD_TOKEN_KEY] = token_data
         return RedirectResponse("/register/complete")
 
 
@@ -91,6 +97,7 @@ def register_complete_page() -> None:
                 ui.notify("Please select a region and location", type="warning")
                 return
             username = discord_user.get("username", "unknown")
+            token_data = app.storage.user.get(PENDING_DISCORD_TOKEN_KEY, {})
             account = Account(
                 id=next_id(),
                 account_type=AccountType.DISCORD_USER,
@@ -102,9 +109,15 @@ def register_complete_page() -> None:
                 discord_avatar_url=discord_oauth.build_avatar_url(
                     str(discord_user["id"]), discord_user.get("avatar")
                 ),
+                discord_access_token=token_data.get("access_token"),
+                discord_refresh_token=token_data.get("refresh_token"),
+                discord_token_expires_at=(
+                    discord_oauth.token_expiry_from(token_data) if token_data else None
+                ),
             )
             accounts.append(account)
             del app.storage.user[PENDING_DISCORD_USER_KEY]
+            app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
             ui.notify("Account created!", type="positive")
             ui.navigate.to("/dashboard")
 
