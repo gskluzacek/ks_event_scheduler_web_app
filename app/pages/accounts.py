@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nicegui import ui
+from nicegui import app, ui
 
 from app.components import layout, role_switcher
 from app.components.timezone_select import TimeZoneSelector
@@ -11,6 +11,11 @@ from app.utils.filters import get_id_filter, get_text_filter, set_filter
 FILTER_KINGDOM_KEY = "accounts_filter_kingdom_id"
 FILTER_ALLIANCE_KEY = "accounts_filter_alliance_id"
 FILTER_NAME_KEY = "accounts_filter_name"
+
+PAGE_KEY = "accounts_page"
+PAGE_SIZE_KEY = "accounts_page_size"
+PAGE_SIZE_OPTIONS = [3, 5, 10, 20, 50]
+DEFAULT_PAGE_SIZE = PAGE_SIZE_OPTIONS[0]
 
 
 def _visible_accounts() -> list[Account]:
@@ -200,65 +205,132 @@ def account_filters() -> None:
             ui.button("Clear Filters", icon="close", on_click=_clear_account_filters).props("flat dense")
 
 
+def _account_card_rows(rows: list[Account], *, show_admin_columns: bool) -> list[dict]:
+    """One display-ready dict per account - same field set the old table columns
+    used, just packaged for a card instead of a row.
+    """
+    player_count_by_account: dict[int, int] = {}
+    for p in players:
+        player_count_by_account[p.account_id] = player_count_by_account.get(p.account_id, 0) + 1
+
+    result = []
+    for a in rows:
+        row = {
+            "id": a.id,
+            "avatar_url": a.discord_avatar_url,
+            "account_name": a.account_name,
+            "discord_global_name": a.discord_global_name,
+            "player_count": player_count_by_account.get(a.id, 0),
+            "time_zone": a.time_zone,
+        }
+        if show_admin_columns:
+            row["account_type"] = a.account_type.value
+            row["super_admin"] = a.is_super_admin
+        result.append(row)
+    return result
+
+
+def _render_account_card(row: dict, *, show_admin_columns: bool) -> None:
+    with ui.card().classes("w-full").props("flat bordered"):
+        with ui.row().classes("items-center gap-3 w-full no-wrap"):
+            with ui.avatar(size="40px", color="grey-4", text_color="grey-8"):
+                if row["avatar_url"]:
+                    ui.image(row["avatar_url"]).style("object-fit: cover")
+                else:
+                    ui.icon("person")
+            with ui.column().classes("gap-1 grow"):
+                with ui.row().classes("items-center gap-2"):
+                    ui.label(row["account_name"]).classes("font-bold")
+                    if row["discord_global_name"]:
+                        ui.label(f"({row['discord_global_name']})").classes("text-sm text-grey-6")
+                    if show_admin_columns:
+                        ui.badge(row["account_type"]).props("color=grey-6")
+                        if row["super_admin"]:
+                            ui.badge("SuperAdmin").props("color=primary")
+                with ui.row().classes("gap-x-6 gap-y-0 text-sm text-grey-7"):
+                    ui.label(f"Players: {row['player_count']}")
+                    ui.label(f"Time Zone: {row['time_zone']}")
+
+
+def _get_page_size() -> int:
+    size = app.storage.user.get(PAGE_SIZE_KEY, DEFAULT_PAGE_SIZE)
+    return size if size in PAGE_SIZE_OPTIONS else DEFAULT_PAGE_SIZE
+
+
+def _get_page() -> int:
+    return app.storage.user.get(PAGE_KEY, 1)
+
+
+def _render_pagination_footer(*, page: int, page_size: int, total: int) -> None:
+    """Records-per-page dropdown + 'X-Y of Z' range + first/prev/next/last -
+    mirrors the standard Quasar table pagination footer (see Greg's screenshot),
+    rebuilt in cards/buttons since these are ui.card rows, not a ui.table.
+    """
+    total_pages = max(1, -(-total // page_size))  # ceil division
+    start = (page - 1) * page_size + 1
+    end = min(page * page_size, total)
+
+    def set_page(new_page: int) -> None:
+        app.storage.user[PAGE_KEY] = new_page
+        account_table.refresh()
+
+    def on_page_size_change(e) -> None:
+        app.storage.user[PAGE_SIZE_KEY] = e.value
+        app.storage.user[PAGE_KEY] = 1  # page size changed - start back at page 1
+        account_table.refresh()
+
+    with ui.row().classes("w-full items-center justify-end gap-4 text-sm text-grey-7"):
+        with ui.row().classes("items-center gap-2"):
+            ui.label("Records per page:")
+            ui.select(PAGE_SIZE_OPTIONS, value=page_size, on_change=on_page_size_change) \
+                .props("dense borderless options-dense").classes("w-16")
+
+        ui.label(f"{start}-{end} of {total}")
+
+        with ui.row().classes("items-center gap-0"):
+            ui.button(icon="first_page", on_click=lambda: set_page(1)) \
+                .props("flat dense round").set_enabled(page > 1)
+            ui.button(icon="chevron_left", on_click=lambda: set_page(page - 1)) \
+                .props("flat dense round").set_enabled(page > 1)
+            ui.button(icon="chevron_right", on_click=lambda: set_page(page + 1)) \
+                .props("flat dense round").set_enabled(page < total_pages)
+            ui.button(icon="last_page", on_click=lambda: set_page(total_pages)) \
+                .props("flat dense round").set_enabled(page < total_pages)
+
+
 @ui.refreshable
 def account_table() -> None:
     can_edit = role_switcher.is_at_least(Role.ADMIN, Role.POWER_ADMIN)
     show_admin_columns = role_switcher.is_any_admin()
     filtered = _filtered_accounts()
 
-    player_count_by_account: dict[int, int] = {}
-    for p in players:
-        player_count_by_account[p.account_id] = player_count_by_account.get(p.account_id, 0) + 1
+    if not filtered:
+        if _visible_accounts():
+            ui.label("No accounts match the current filters.").classes("text-sm text-grey-5")
+        return
 
-    rows = []
-    for a in filtered:
-        display_name = f"{a.account_name} ({a.discord_global_name})" if a.discord_global_name else a.account_name
-        row = {
-            "id": a.id,
-            "avatar_url": a.discord_avatar_url,
-            "account_name": display_name,
-            "player_count": player_count_by_account.get(a.id, 0),
-            "time_zone": a.time_zone,
-        }
-        if show_admin_columns:
-            row["account_type"] = a.account_type.value
-            row["super_admin"] = "Yes" if a.is_super_admin else ""
-        rows.append(row)
+    # A plain User/SchedulerAdmin only ever has one visible account (see
+    # _visible_accounts()) - no point showing pagination controls for one card.
+    show_pagination = len(filtered) > 1
+    page_size = _get_page_size() if show_pagination else len(filtered)
+    total_pages = max(1, -(-len(filtered) // page_size))
+    page = min(max(1, _get_page()), total_pages) if show_pagination else 1
 
-    columns = [
-        {"name": "avatar_url", "label": "", "field": "avatar_url"},
-        {"name": "account_name", "label": "Account", "field": "account_name", "sortable": True},
-        {"name": "player_count", "label": "Players", "field": "player_count", "sortable": True},
-        {"name": "time_zone", "label": "Time Zone", "field": "time_zone", "sortable": True},
-    ]
-    if show_admin_columns:
-        columns.append({"name": "account_type", "label": "Type", "field": "account_type", "sortable": True})
-        columns.append({"name": "super_admin", "label": "SuperAdmin", "field": "super_admin"})
+    start_index = (page - 1) * page_size
+    page_accounts = filtered[start_index:start_index + page_size]
 
-    table = ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
-    # Custom cell: q-avatar with the Discord image if we have one, else a generic icon.
-    # ui.table has no Python-level "image column" option, so this is one of the rare
-    # legitimate uses of a Quasar template string (nicegui_llms.md > Named Slots).
-    table.add_slot(
-        "body-cell-avatar_url",
-        '''
-        <q-td :props="props">
-            <q-avatar size="28px" color="grey-4" text-color="grey-8">
-                <img v-if="props.value" :src="props.value" style="width: 100%; height: 100%; object-fit: cover" />
-                <q-icon v-else name="person" />
-            </q-avatar>
-        </q-td>
-        ''',
-    )
+    for row in _account_card_rows(page_accounts, show_admin_columns=show_admin_columns):
+        _render_account_card(row, show_admin_columns=show_admin_columns)
+
+    if show_pagination:
+        _render_pagination_footer(page=page, page_size=page_size, total=len(filtered))
+
     if can_edit:
         # Plain text, no link styling - matches app/pages/players.py and every other
-        # list page, none of which style a column as a fake link either. Row-click-to-
-        # edit isn't wired up yet, so there's nothing to visually signal as clickable.
-        ui.label("(Admin/PowerAdmin: click a row in the real app to edit or remove an account)") \
+        # list page. Card-click-to-edit isn't wired up yet, so there's nothing to
+        # visually signal as clickable.
+        ui.label("(Admin/PowerAdmin: click a card in the real app to edit or remove an account)") \
             .classes("text-xs text-grey-5")
-
-    if not filtered and _visible_accounts():
-        ui.label("No accounts match the current filters.").classes("text-sm text-grey-5")
 
 
 def _open_add_account_dialog() -> None:
