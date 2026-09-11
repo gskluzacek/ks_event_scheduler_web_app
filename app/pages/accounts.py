@@ -438,41 +438,48 @@ def _render_copyable_field(label: str, value: str | None) -> None:
         ui.button(icon="content_copy", on_click=copy_url).props("flat dense round size=sm")
 
 
+def _render_account_details(account: Account) -> None:
+    """The read-only "detail view" body: avatar + name header, then every
+    Account column. Shared verbatim between the View dialog and part 1 of
+    the Edit dialog, so the two always stay in sync.
+    """
+    with ui.row().classes("items-center gap-3 w-full"):
+        with ui.avatar(size="48px", color="grey-4", text_color="grey-8"):
+            if account.discord_avatar_url:
+                ui.image(account.discord_avatar_url).style("object-fit: cover")
+            else:
+                ui.icon("person")
+        ui.label(account.account_name).classes("text-base font-bold")
+
+    with ui.column().classes("w-full gap-1"):
+        _render_field("Account ID", str(account.id))
+        _render_field("Account Type", account.account_type.value)
+        _render_field("Account Name", account.account_name)
+        _render_field("Time Zone", account.time_zone)
+        _render_field("Super Admin", "Yes" if account.is_super_admin else "No")
+
+        ui.separator().classes("my-3")
+        ui.label("Discord").classes("text-xs font-bold text-grey-6 uppercase")
+        _render_field("Discord User ID", account.discord_user_id or "—")
+        _render_field("Discord Username", account.discord_username or "—")
+        _render_field("Discord Global Name", account.discord_global_name or "—")
+        _render_copyable_field("Discord Avatar URL", account.discord_avatar_url)
+
+        ui.separator().classes("my-3")
+        ui.label("Audit").classes("text-xs font-bold text-grey-6 uppercase")
+        _render_field("Created By", _resolve_account_name(account.create_account_id, account))
+        _render_field("Created At", _format_dt(account.created_at, account.time_zone))
+        _render_field("Updated By", _resolve_account_name(account.update_account_id, account))
+        _render_field("Updated At", _format_dt(account.updated_at, account.time_zone))
+
+
 def _open_view_account_dialog(account: Account) -> None:
     """Read-only detail view - every Account column, with the two audit-trail
     account IDs resolved to names per the requirements.
     """
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
         ui.label("Account Details").classes("text-lg font-bold")
-
-        with ui.row().classes("items-center gap-3 w-full"):
-            with ui.avatar(size="48px", color="grey-4", text_color="grey-8"):
-                if account.discord_avatar_url:
-                    ui.image(account.discord_avatar_url).style("object-fit: cover")
-                else:
-                    ui.icon("person")
-            ui.label(account.account_name).classes("text-base font-bold")
-
-        with ui.column().classes("w-full gap-1"):
-            _render_field("Account ID", str(account.id))
-            _render_field("Account Type", account.account_type.value)
-            _render_field("Account Name", account.account_name)
-            _render_field("Time Zone", account.time_zone)
-            _render_field("Super Admin", "Yes" if account.is_super_admin else "No")
-
-            ui.separator().classes("my-3")
-            ui.label("Discord").classes("text-xs font-bold text-grey-6 uppercase")
-            _render_field("Discord User ID", account.discord_user_id or "—")
-            _render_field("Discord Username", account.discord_username or "—")
-            _render_field("Discord Global Name", account.discord_global_name or "—")
-            _render_copyable_field("Discord Avatar URL", account.discord_avatar_url)
-
-            ui.separator().classes("my-3")
-            ui.label("Audit").classes("text-xs font-bold text-grey-6 uppercase")
-            _render_field("Created By", _resolve_account_name(account.create_account_id, account))
-            _render_field("Created At", _format_dt(account.created_at, account.time_zone))
-            _render_field("Updated By", _resolve_account_name(account.update_account_id, account))
-            _render_field("Updated At", _format_dt(account.updated_at, account.time_zone))
+        _render_account_details(account)
 
         with ui.row().classes("w-full justify-end"):
             ui.button("Close", on_click=dialog.close).props("flat")
@@ -523,54 +530,31 @@ async def _do_discord_refresh(account: Account, remaining_label: ui.label) -> No
 
 def _open_edit_account_dialog(account: Account) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
+        # Part 1: identical read-only detail view to the View dialog.
         ui.label("Edit Account").classes("text-lg font-bold")
+        _render_account_details(account)
 
-        with ui.column().classes("w-full gap-1"):
-            _render_field("Account ID", str(account.id))
-            _render_field("Account Type", account.account_type.value)
+        # Part 2: the actual editable controls.
+        ui.separator().classes("my-3")
+        ui.label("Update").classes("text-xs font-bold text-grey-6 uppercase")
 
-            # Account Name: editable only for manual accounts. Discord accounts derive
-            # their identity from Discord, shown here as an avatar + username instead
-            # of an editable field (see _do_discord_refresh for how it gets updated).
-            name_input = None
-            if account.account_type == AccountType.MANUAL_USER:
-                name_input = ui.input("Account Name", value=account.account_name) \
-                    .props("outlined").classes("w-full")
-            else:
-                with ui.row().classes("items-center gap-3 w-full"):
-                    with ui.avatar(size="40px", color="grey-4", text_color="grey-8"):
-                        if account.discord_avatar_url:
-                            ui.image(account.discord_avatar_url).style("object-fit: cover")
-                        else:
-                            ui.icon("person")
-                    ui.label(account.discord_username or "—").classes("text-sm font-bold")
+        # Account Name: editable only for manual accounts. Discord accounts derive
+        # their identity from Discord, so they get a Refresh button instead
+        # (see _do_discord_refresh for how the stored fields get updated).
+        name_input = None
+        if account.account_type == AccountType.MANUAL_USER:
+            name_input = ui.input("Account Name", value=account.account_name) \
+                .props("outlined").classes("w-full")
+        else:
+            remaining_label = ui.label("Discord username, name, and avatar cannot be edited directly.") \
+                .classes("text-xs text-grey-6")
+            ui.button(
+                "Refresh from Discord", icon="refresh",
+                on_click=lambda: _do_discord_refresh(account, remaining_label),
+            ).props("outlined dense no-caps")
 
-                remaining_label = ui.label("Discord username, name, and avatar cannot be edited directly.") \
-                    .classes("text-xs text-grey-6")
-                ui.button(
-                    "Refresh from Discord", icon="refresh",
-                    on_click=lambda: _do_discord_refresh(account, remaining_label),
-                ).props("outlined dense no-caps")
-
-            _render_field("Super Admin", "Yes" if account.is_super_admin else "No")
-
-            ui.separator().classes("my-3")
-            ui.label("Discord").classes("text-xs font-bold text-grey-6 uppercase")
-            _render_field("Discord User ID", account.discord_user_id or "—")
-            _render_field("Discord Username", account.discord_username or "—")
-            _render_field("Discord Global Name", account.discord_global_name or "—")
-            _render_copyable_field("Discord Avatar URL", account.discord_avatar_url)
-
-            ui.separator().classes("my-3")
-            ui.label("Audit").classes("text-xs font-bold text-grey-6 uppercase")
-            _render_field("Created By", _resolve_account_name(account.create_account_id, account))
-            _render_field("Created At", _format_dt(account.created_at, account.time_zone))
-            _render_field("Updated By", _resolve_account_name(account.update_account_id, account))
-            _render_field("Updated At", _format_dt(account.updated_at, account.time_zone))
-
-            ui.separator().classes("my-3")
-            ui.label("Time Zone").classes("text-sm text-grey-6")
-            tz_selector = TimeZoneSelector(value=account.time_zone)
+        ui.label("Time Zone").classes("text-sm text-grey-6 mt-2")
+        tz_selector = TimeZoneSelector(value=account.time_zone)
 
         def submit() -> None:
             if name_input is not None and not name_input.value:
