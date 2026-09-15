@@ -7,6 +7,7 @@ from nicegui import ui
 from app.components import layout, role_switcher
 from app.models.sample_data import accounts, alliances, events, kingdoms, players, time_slots
 from app.models.schema import Player, Role, TimeSlot, TimeSlotType, next_id
+from app.pages.account_player import _format_dt, _render_field, _resolve_account_name, _set_enabled
 from app.utils.filters import get_id_filter, get_sort_state, get_text_filter, set_filter, set_sort_state
 
 FILTER_KINGDOM_KEY = "timeslots_filter_kingdom_id"
@@ -160,9 +161,7 @@ def _filtered_slots() -> list[TimeSlot]:
 def timeslots_page() -> None:
     ui.page_title("Time Slots - Kingshot Scheduler")
     with layout.frame("/timeslots"):
-        with ui.row().classes("w-full items-center justify-between"):
-            ui.label("Time Slot Management").classes("text-2xl font-bold")
-            ui.button("Add Time Slot", icon="add", on_click=_open_add_dialog).props("unelevated color=primary")
+        ui.label("Time Slot Management").classes("text-2xl font-bold")
         slot_filters()
         slot_table()
 
@@ -383,8 +382,21 @@ def slot_table() -> None:
         {"name": "needs_review", "label": "Needs Review", "field": "needs_review"},
     ]
     sort_by, sort_desc = get_sort_state(SORT_BY_KEY, SORT_DESC_KEY)
+
+    # Toolbar: View/Edit act on the single selected row (see slot_by_id below);
+    # both start disabled and are re-enabled only when selection count == 1 -
+    # room to grow (e.g. a future multi-select "Delete") without restructuring.
+    slot_by_id = {s.id: s for s in filtered}
+    with ui.row().classes("w-full items-center gap-2"):
+        view_button = ui.button("View", icon="visibility").props("outlined")
+        edit_button = ui.button("Edit", icon="edit").props("outlined")
+        ui.space()
+        ui.button("Add Time Slot", icon="add", on_click=_open_add_dialog).props("unelevated color=primary")
+    _set_enabled(view_button, False)
+    _set_enabled(edit_button, False)
+
     table = ui.table(
-        columns=columns, rows=rows, row_key="id",
+        columns=columns, rows=rows, row_key="id", selection="multiple",
         pagination={"sortBy": sort_by, "descending": sort_desc, "rowsPerPage": 0},
     ).classes("w-full").props("flat bordered")
     # Custom cell: q-avatar with the player's Discord image if we have one, else a generic
@@ -409,11 +421,139 @@ def slot_table() -> None:
 
     table.on("update:pagination", on_pagination_change)
 
+    def on_select(e) -> None:
+        enabled = len(e.selection) == 1
+        _set_enabled(view_button, enabled)
+        _set_enabled(edit_button, enabled)
+
+    table.on_select(on_select)
+
+    def handle_view() -> None:
+        if len(table.selected) != 1:
+            return
+        slot = slot_by_id.get(table.selected[0]["id"])
+        if slot:
+            _open_view_slot_dialog(slot)
+
+    def handle_edit() -> None:
+        if len(table.selected) != 1:
+            return
+        slot = slot_by_id.get(table.selected[0]["id"])
+        if slot:
+            _open_edit_slot_dialog(slot)
+
+    view_button.on_click(handle_view)
+    edit_button.on_click(handle_edit)
+
     if not filtered and _visible_slots():
         ui.label("No time slots match the current filters.").classes("text-sm text-grey-5")
     visibility_message = _visibility_message()
     if visibility_message:
         ui.label(visibility_message).classes("text-xs text-grey-5")
+
+
+def _render_slot_details(slot: TimeSlot) -> None:
+    """Read-only detail view - every TimeSlot column. Shared verbatim between
+    the View dialog and part 1 of the Edit dialog, mirroring
+    players._render_player_details().
+    """
+    player = next((p for p in players if p.id == slot.player_id), None)
+    event = next((e for e in events if e.id == slot.event_id), None)
+    account = next((a for a in accounts if a.id == player.account_id), None) if player else None
+    alliance = next((a for a in alliances if a.id == player.alliance_id), None) if player else None
+
+    with ui.row().classes("items-center gap-3 w-full"):
+        ui.icon("schedule", size="32px").classes("text-grey-6")
+        ui.label(f"{player.kingshot_name if player else '?'} — {event.name if event else '?'}") \
+            .classes("text-base font-bold")
+
+    with ui.column().classes("w-full gap-1"):
+        _render_field("Time Slot ID", str(slot.id))
+        _render_field("Player", player.kingshot_name if player else f"Unknown (id={slot.player_id})")
+        _render_field("Event", event.name if event else f"Unknown (id={slot.event_id})")
+        _render_field("Alliance", alliance.name if alliance else "?")
+        _render_field("Local Start", slot.local_start.strftime("%I:%M %p").lstrip("0"))
+        _render_field("Local End", slot.local_end.strftime("%I:%M %p").lstrip("0"))
+        _render_field("Type", slot.time_slot_type.value.capitalize())
+        _render_field("Needs Review", "Yes" if slot.needs_review else "No")
+
+        ui.separator().classes("my-3")
+        ui.label("Audit").classes("text-xs font-bold text-grey-6 uppercase")
+        owner_time_zone = account.time_zone if account else "UTC"
+        _render_field("Created By", _resolve_account_name(slot.create_account_id, account) if account else "—")
+        _render_field("Created At", _format_dt(slot.created_at, owner_time_zone))
+        _render_field("Updated By", _resolve_account_name(slot.update_account_id, account) if account else "—")
+        _render_field("Updated At", _format_dt(slot.updated_at, owner_time_zone))
+
+
+def _open_view_slot_dialog(slot: TimeSlot) -> None:
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
+        ui.label("Time Slot Details").classes("text-lg font-bold")
+        _render_slot_details(slot)
+
+        with ui.row().classes("w-full justify-end"):
+            ui.button("Close", on_click=dialog.close).props("flat")
+
+    dialog.open()
+
+
+def _open_edit_slot_dialog(slot: TimeSlot) -> None:
+    """Editable fields per requirements: local_start, local_end, time_slot_type,
+    needs_review. Everything else is read-only (part 1, shared with the View
+    dialog). Start/end use the same hour+minute dropdown pattern as the Add
+    dialog; unlike Add there's no duration field, since both ends are already
+    known and being edited directly. End is intentionally allowed to be
+    "before" start (e.g. 23:00-01:00) - that represents an overnight window,
+    same as _open_add_dialog's duration math already permits.
+    """
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
+        ui.label("Edit Time Slot").classes("text-lg font-bold")
+
+        @ui.refreshable
+        def details_view() -> None:
+            _render_slot_details(slot)
+
+        details_view()
+
+        ui.separator().classes("my-3")
+        ui.label("Update").classes("text-xs font-bold text-grey-6 uppercase")
+
+        hour_options = {h: datetime(2000, 1, 1, h).strftime("%I %p").lstrip("0") for h in range(24)}
+        minute_options = {0: "00", 15: "15", 30: "30", 45: "45"}
+
+        with ui.row().classes("w-full gap-2"):
+            start_hour_select = ui.select(hour_options, value=slot.local_start.hour, label="Start Hour") \
+                .props("outlined").classes("flex-1")
+            start_minute_select = ui.select(minute_options, value=slot.local_start.minute, label="Start Minute") \
+                .props("outlined").classes("flex-1")
+        with ui.row().classes("w-full gap-2"):
+            end_hour_select = ui.select(hour_options, value=slot.local_end.hour, label="End Hour") \
+                .props("outlined").classes("flex-1")
+            end_minute_select = ui.select(minute_options, value=slot.local_end.minute, label="End Minute") \
+                .props("outlined").classes("flex-1")
+        type_select = ui.select(
+            {t.value: t.value.capitalize() for t in TimeSlotType},
+            value=slot.time_slot_type.value, label="Type",
+        ).props("outlined").classes("w-full")
+        needs_review_checkbox = ui.checkbox("Needs Review", value=slot.needs_review)
+
+        def submit() -> None:
+            slot.local_start = datetime(2000, 1, 1, start_hour_select.value, start_minute_select.value).time()
+            slot.local_end = datetime(2000, 1, 1, end_hour_select.value, end_minute_select.value).time()
+            slot.time_slot_type = TimeSlotType(type_select.value)
+            slot.needs_review = needs_review_checkbox.value
+            slot.update_account_id = role_switcher.current_account_id()
+            slot.updated_at = datetime.utcnow()
+            dialog.close()
+            slot_filters.refresh()
+            slot_table.refresh()
+            ui.notify("Time slot updated", type="positive")
+
+        with ui.row().classes("w-full justify-end gap-2"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+            ui.button("Save", on_click=submit).props("unelevated color=primary")
+
+    dialog.open()
 
 
 def _open_add_dialog() -> None:
