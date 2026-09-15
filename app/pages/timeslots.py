@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from nicegui import ui
 
@@ -501,10 +501,8 @@ def _open_edit_slot_dialog(slot: TimeSlot) -> None:
     """Editable fields per requirements: local_start, local_end, time_slot_type,
     needs_review. Everything else is read-only (part 1, shared with the View
     dialog). Start/end use the same hour+minute dropdown pattern as the Add
-    dialog; unlike Add there's no duration field, since both ends are already
-    known and being edited directly. End is intentionally allowed to be
-    "before" start (e.g. 23:00-01:00) - that represents an overnight window,
-    same as _open_add_dialog's duration math already permits.
+    dialog. End must be strictly after start - overnight windows (e.g.
+    23:00-01:00) aren't supported, same restriction as _open_add_dialog.
     """
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
         ui.label("Edit Time Slot").classes("text-lg font-bold")
@@ -538,8 +536,13 @@ def _open_edit_slot_dialog(slot: TimeSlot) -> None:
         needs_review_checkbox = ui.checkbox("Needs Review", value=slot.needs_review)
 
         def submit() -> None:
-            slot.local_start = datetime(2000, 1, 1, start_hour_select.value, start_minute_select.value).time()
-            slot.local_end = datetime(2000, 1, 1, end_hour_select.value, end_minute_select.value).time()
+            start_time = datetime(2000, 1, 1, start_hour_select.value, start_minute_select.value).time()
+            end_time = datetime(2000, 1, 1, end_hour_select.value, end_minute_select.value).time()
+            if end_time <= start_time:
+                ui.notify("End time must be after start time", type="warning")
+                return
+            slot.local_start = start_time
+            slot.local_end = end_time
             slot.time_slot_type = TimeSlotType(type_select.value)
             slot.needs_review = needs_review_checkbox.value
             slot.update_account_id = role_switcher.current_account_id()
@@ -568,15 +571,20 @@ def _open_add_dialog() -> None:
             {e.id: e.name for e in events}, label="Event"
         ).props("outlined").classes("w-full")
         # Time-only, no date - this is a recurring local-time availability window (see schema.TimeSlot).
-        # Two dropdowns instead of ui.time()'s clock-face picker, per request.
+        # Two dropdowns instead of ui.time()'s clock-face picker, per request. Same hour+minute
+        # dropdown pattern as the Edit dialog, for both start and end.
         hour_options = {h: datetime(2000, 1, 1, h).strftime("%I %p").lstrip("0") for h in range(24)}
         minute_options = {0: "00", 15: "15", 30: "30", 45: "45"}
         with ui.row().classes("w-full gap-2"):
-            hour_select = ui.select(hour_options, value=12, label="Start Hour") \
+            start_hour_select = ui.select(hour_options, value=12, label="Start Hour") \
                 .props("outlined").classes("flex-1")
-            minute_select = ui.select(minute_options, value=0, label="Start Minute") \
+            start_minute_select = ui.select(minute_options, value=0, label="Start Minute") \
                 .props("outlined").classes("flex-1")
-        duration = ui.number("Duration (hours)", value=1, min=1, max=8).props("outlined").classes("w-full")
+        with ui.row().classes("w-full gap-2"):
+            end_hour_select = ui.select(hour_options, value=13, label="End Hour") \
+                .props("outlined").classes("flex-1")
+            end_minute_select = ui.select(minute_options, value=0, label="End Minute") \
+                .props("outlined").classes("flex-1")
         type_select = ui.select(
             {t.value: t.value.capitalize() for t in TimeSlotType},
             value=TimeSlotType.PREFERRED.value, label="Type",
@@ -586,15 +594,17 @@ def _open_add_dialog() -> None:
             if not (player_select.value and event_select.value):
                 ui.notify("Select a player and event", type="warning")
                 return
-            # Combine with an arbitrary anchor date purely to do time arithmetic, then drop it again.
-            start_dt = datetime(2000, 1, 1, hour_select.value, minute_select.value)
-            end_dt = start_dt + timedelta(hours=duration.value or 1)
+            start_time = datetime(2000, 1, 1, start_hour_select.value, start_minute_select.value).time()
+            end_time = datetime(2000, 1, 1, end_hour_select.value, end_minute_select.value).time()
+            if end_time <= start_time:
+                ui.notify("End time must be after start time", type="warning")
+                return
             time_slots.append(TimeSlot(
                 id=next_id(),
                 player_id=player_select.value,
                 event_id=event_select.value,
-                local_start=start_dt.time(),
-                local_end=end_dt.time(),
+                local_start=start_time,
+                local_end=end_time,
                 time_slot_type=TimeSlotType(type_select.value),
             ))
             dialog.close()
