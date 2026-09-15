@@ -19,8 +19,7 @@ from app.models.schema import Role
 # (route, label, icon, roles allowed to SEE the link; None = everyone)
 NAV_ITEMS: list[tuple[str, str, str, tuple[Role, ...] | None]] = [
     ("/dashboard", "Dashboard", "space_dashboard", None),
-    ("/accounts", "Accounts", "badge", None),
-    ("/players", "Players", "groups", None),
+    ("/players", "Accounts & Players", "groups", None),
     ("/timeslots", "Time Slots", "schedule", None),
     ("/events", "Events", "event", None),
     ("/search", "Search", "search", None),

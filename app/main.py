@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from nicegui import ui
 
-from app.pages import accounts, admin, auth, dashboard, events, players, search, timeslots
+from app.pages import admin, auth, dashboard, events, players, search, timeslots
+
+# NOTE: app.pages.accounts has no @ui.page route anymore - it's imported by
+# players.py directly (account CRUD is surfaced from the Accounts & Players
+# page's account cards, not a standalone page). No need to import it here too.
 
 
 @ui.page("/")
