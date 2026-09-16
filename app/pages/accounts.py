@@ -24,7 +24,7 @@ from app.auth.discord_oauth import RefreshOutcome, refresh_discord_identity
 from app.components import role_switcher
 from app.components.timezone_select import TimeZoneSelector
 from app.models.sample_data import accounts
-from app.models.schema import Account, AccountType, next_id
+from app.models.schema import Account, AccountType, Role, next_id
 from app.pages.account_player import _format_dt, _render_copyable_field, _render_field, _resolve_account_name
 from app.utils.rate_limit import check_and_record
 
@@ -175,6 +175,14 @@ def _open_edit_account_dialog(account: Account, *, on_saved) -> None:
         ui.label("Time Zone").classes("text-sm text-grey-6 mt-2")
         tz_selector = TimeZoneSelector(value=account.time_zone)
 
+        # SuperAdmin-only, and only when editing someone else's account - granting
+        # yourself SuperAdmin from your own Edit dialog isn't something this control
+        # should allow (per Greg's requirement: "other than his own").
+        is_super_admin_checkbox = None
+        if role_switcher.current_role() == Role.SUPER_ADMIN \
+                and account.id != role_switcher.current_account_id():
+            is_super_admin_checkbox = ui.checkbox("Super Admin", value=account.is_super_admin)
+
         def submit() -> None:
             if name_input is not None and not name_input.value:
                 ui.notify("Account name is required", type="warning")
@@ -185,6 +193,8 @@ def _open_edit_account_dialog(account: Account, *, on_saved) -> None:
             if name_input is not None:
                 account.account_name = name_input.value
             account.time_zone = tz_selector.value
+            if is_super_admin_checkbox is not None:
+                account.is_super_admin = is_super_admin_checkbox.value
             account.update_account_id = role_switcher.current_account_id()
             account.updated_at = datetime.utcnow()
             dialog.close()

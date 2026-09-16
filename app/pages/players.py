@@ -569,9 +569,20 @@ async def _do_discord_player_sync(player: Player, status_label: ui.label, on_upd
         status_label.set_text(f"✗ Unexpected error: {check.detail}")
 
 
+# Only these three roles are ever hand-assigned via this control - SuperAdmin
+# lives on the account (see schema.py's Player.roles docstring / Account.is_super_admin),
+# and plain Role.USER is what an empty selection collapses back down to below.
+ASSIGNABLE_ROLES = [Role.ADMIN, Role.POWER_ADMIN, Role.SCHEDULER_ADMIN]
+
+
 def _open_edit_player_dialog(player: Player) -> None:
     account = next((a for a in accounts if a.id == player.account_id), None)
     is_discord_account = account is not None and account.account_type == AccountType.DISCORD_USER
+    # Role *management* is a PowerAdmin/SuperAdmin capability (is_at_least() folds
+    # SuperAdmin in automatically) - matches the read-only Roles display's gating
+    # in player_table() above, so who can see it editable is the same set who can
+    # already see it at all.
+    can_edit_roles = role_switcher.is_at_least(Role.POWER_ADMIN)
 
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
         # Part 1: identical read-only detail view to the View dialog, wrapped in its
@@ -595,6 +606,16 @@ def _open_edit_player_dialog(player: Player) -> None:
         tc_select = ui.select(TOWN_CENTER_LEVELS, label="Town Center Level", value=player.town_center_level) \
             .props("outlined").classes("w-full")
 
+        roles_select = None
+        if can_edit_roles:
+            current_assignable = [r.value for r in player.roles if r in ASSIGNABLE_ROLES]
+            roles_select = ui.select(
+                [r.value for r in ASSIGNABLE_ROLES],
+                label="Roles",
+                multiple=True,
+                value=current_assignable,
+            ).props("outlined use-chips").classes("w-full")
+
         ui.label("Discord nickname and guild avatar are set from Discord, not edited directly.") \
             .classes("text-xs text-grey-6 mt-2")
         if is_discord_account:
@@ -610,6 +631,14 @@ def _open_edit_player_dialog(player: Player) -> None:
             if not kingshot_name_input.value:
                 ui.notify("Kingshot name is required", type="warning")
                 return
+            if roles_select is not None:
+                selected = set(roles_select.value or [])
+                if Role.ADMIN.value in selected and Role.POWER_ADMIN.value in selected:
+                    ui.notify("A player can't be both Admin and PowerAdmin - pick one.", type="warning")
+                    return
+                # Empty selection collapses back to Role.USER (see ASSIGNABLE_ROLES comment) -
+                # a plain player with no elevated roles, matching how sample_data seeds them.
+                player.roles = [Role(v) for v in selected] or [Role.USER]
             player.kingshot_name = kingshot_name_input.value
             player.power = int(power_input.value or 0)
             player.town_center_level = tc_select.value or player.town_center_level
