@@ -581,8 +581,12 @@ def _open_edit_player_dialog(player: Player) -> None:
     # Role *management* is a PowerAdmin/SuperAdmin capability (is_at_least() folds
     # SuperAdmin in automatically) - matches the read-only Roles display's gating
     # in player_table() above, so who can see it editable is the same set who can
-    # already see it at all.
-    can_edit_roles = role_switcher.is_at_least(Role.POWER_ADMIN)
+    # already see it at all. Exception: a PowerAdmin editing their own player can't
+    # touch their own roles (no self-granting/self-revoking) - SuperAdmin is exempt
+    # from this, since per requirements SuperAdmin can edit everything.
+    is_own_player = player.account_id == role_switcher.current_account_id()
+    is_self_power_admin = role_switcher.current_role() == Role.POWER_ADMIN and is_own_player
+    can_edit_roles = role_switcher.is_at_least(Role.POWER_ADMIN) and not is_self_power_admin
 
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
         # Part 1: identical read-only detail view to the View dialog, wrapped in its
