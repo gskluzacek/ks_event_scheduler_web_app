@@ -1,0 +1,46 @@
+# Preview accounts inserted by scripts/seed_preview_accounts.py.
+#
+# Fixed account_id values (1001-1005), rather than left to autoincrement -
+# see that script's docstring for why: app/models/sample_data.py's
+# still-not-migrated `players` list needs a stable account_id to reference.
+
+- account_id: 1001
+  account_type: discord-user
+  account_name: gskluzacek_test
+  time_zone: America/Chicago
+  discord_user_id: "835177531904098381"
+  discord_username: gskluzacek_test
+  discord_global_name: Greg_test
+  discord_avatar_url: "https://cdn.discordapp.com/avatars/835177531904098380/f20536006b176b257c71f9fb9c52dbf2.webp?size=2048"
+  is_super_admin: true
+
+- account_id: 1002
+  account_type: discord-user
+  account_name: marla_singer_2026_test
+  time_zone: America/New_York
+  discord_user_id: "222222222222222222"
+  discord_username: marla_singer_2026_test
+  discord_global_name: Marla Singer test
+
+- account_id: 1003
+  account_type: discord-user
+  account_name: tyler_durden_58_test
+  time_zone: Europe/London
+  discord_user_id: "333333333333333333"
+  discord_username: tyler_durden_58_test
+  discord_global_name: Tyler Durden test
+
+- account_id: 1004
+  account_type: discord-user
+  account_name: mr_roboto_1983
+  time_zone: Asia/Tokyo
+  discord_user_id: "444444444444444444"
+  discord_username: mr_roboto_1983
+  discord_global_name: Kilroy
+
+- account_id: 1005
+  account_type: manual-user
+  account_name: max_manual_planck
+  time_zone: Europe/Berlin
+  create_account_id: 1001
+  update_account_id: 1001

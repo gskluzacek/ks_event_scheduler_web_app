@@ -20,6 +20,16 @@ def _has_any() -> bool:
         return session.exec(select(Account).limit(1)).first() is not None
 
 
+def _list() -> list[Account]:
+    with get_session() as session:
+        return list(session.exec(select(Account).order_by(Account.account_name)))
+
+
+def _get(account_id: int) -> Account | None:
+    with get_session() as session:
+        return session.get(Account, account_id)
+
+
 def _insert(account: Account) -> Account:
     with get_session() as session:
         session.add(account)
@@ -28,8 +38,29 @@ def _insert(account: Account) -> Account:
         return account
 
 
+def _update(account_id: int, fields: dict) -> Account:
+    with get_session() as session:
+        account = session.get(Account, account_id)
+        if account is None:
+            raise ValueError(f"No account with account_id={account_id}")
+        for key, value in fields.items():
+            setattr(account, key, value)
+        session.add(account)
+        session.commit()
+        session.refresh(account)
+        return account
+
+
 async def has_any_account() -> bool:
     return await run.io_bound(_has_any)
+
+
+async def list_accounts() -> list[Account]:
+    return await run.io_bound(_list)
+
+
+async def get_account(account_id: int) -> Account | None:
+    return await run.io_bound(_get, account_id)
 
 
 async def create_account(
@@ -58,3 +89,12 @@ async def create_account(
         **discord_fields,
     )
     return await run.io_bound(_insert, account)
+
+
+async def update_account(account_id: int, *, update_account_id: int | None, **fields) -> Account:
+    """Updates whichever columns are passed in `fields`, plus the audit columns
+    (update_account_id, updated_at) - every caller passes the acting account's
+    id (role_switcher.current_account_id()), same convention as every other
+    edit path in this app."""
+    fields = {**fields, "update_account_id": update_account_id, "updated_at": datetime.utcnow()}
+    return await run.io_bound(_update, account_id, fields)
