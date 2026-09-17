@@ -99,7 +99,7 @@ def register_complete_page() -> None:
             username = discord_user.get("username", "unknown")
             token_data = app.storage.user.get(PENDING_DISCORD_TOKEN_KEY, {})
             account = Account(
-                id=next_id(),
+                account_id=next_id(),
                 account_type=AccountType.DISCORD_USER,
                 account_name=username,
                 time_zone=tz_selector.value,

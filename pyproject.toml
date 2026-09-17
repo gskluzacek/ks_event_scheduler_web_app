@@ -10,4 +10,5 @@ dependencies = [
     "nicegui>=3.16.0",
     "python-dateutil>=2.9.0",
     "python-dotenv>=1.2.3",
+    "sqlmodel>=0.0.24",
 ]

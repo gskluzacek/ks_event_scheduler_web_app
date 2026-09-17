@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from nicegui import ui
 
+from app.db import init_db
 from app.pages import admin, auth, dashboard, events, players, search, timeslots
 
 # NOTE: app.pages.accounts has no @ui.page route anymore - it's imported by
@@ -21,6 +22,7 @@ def index() -> None:
     ui.navigate.to("/dashboard")
 
 
+init_db()
 auth.register_fastapi_routes()
 
 ui.run(

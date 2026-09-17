@@ -1,12 +1,21 @@
 """
-In-memory data model for the mock phase.
+Data model. Being migrated table-by-table from in-memory dataclasses to real
+SQLite tables (see web_app_requirements.md > Data Model Overview) - see
+app/db.py and app/data/ for the SQLModel/repository side of that migration.
 
-NOTE: These are plain dataclasses in module-level lists, acting as a stand-in
-for the eventual SQLite tables (see web_app_requirements.md > Data Model Overview).
-Module-level state is normally an anti-pattern in NiceGUI (shared across all
-users - see nicegui_llms.md Mental Model #2), but for this mock every "user"
-is really just us previewing roles, so a shared in-memory store is fine and
-even useful (edits by one role are visible when you switch roles).
+TimeZone and Account are real `SQLModel` tables now. Kingdom, Alliance,
+Player, TimeSlot and Event are still plain dataclasses in module-level lists
+(app/models/sample_data.py) until their turn comes; Module-level state is
+normally an anti-pattern in NiceGUI (shared across all users - see
+nicegui_llms.md Mental Model #2), but for this mock every "user" is really
+just us previewing roles, so a shared in-memory store is fine and even
+useful (edits by one role are visible when you switch roles).
+
+Primary keys use descriptive names (`account_id`, not `id`) rather than the
+NiceGUI/SQLModel default - decided 2026-09, applied table-by-table as each
+migrates off `sample_data.py`. Migrated tables keep a read-only `.id`
+property alias so not-yet-migrated page code keeps working unchanged; the
+alias is deleted (and call sites fixed) when that page's own patch lands.
 """
 from __future__ import annotations
 
@@ -16,6 +25,7 @@ from enum import Enum
 from itertools import count
 
 from dateutil import tz
+from sqlmodel import Field, SQLModel
 
 _id_counter = count(1)
 
@@ -51,14 +61,19 @@ TOWN_CENTER_LEVELS: list[str] = [str(n) for n in range(1, 31)] + [
 ]
 
 
-@dataclass
-class TimeZone:
+class TimeZone(SQLModel, table=True):
     """IANA name split into region + location (per web_app_requirements.md > time_zone),
     so the UI can offer two cascading dropdowns instead of one very long list!
     """
-    id: int
+    __tablename__ = "time_zone"
+
+    timezone_id: int | None = Field(default=None, primary_key=True)
     region: str      # e.g. "America" - the part before the "/"
     location: str    # e.g. "Chicago" - the part after the "/"
+
+    @property
+    def id(self) -> int | None:  # transitional alias - see module docstring
+        return self.timezone_id
 
     @property
     def iana_name(self) -> str:
@@ -88,9 +103,10 @@ class Alliance:
     discord_guild_name: str
 
 
-@dataclass
-class Account:
-    id: int
+class Account(SQLModel, table=True):
+    __tablename__ = "account"
+
+    account_id: int | None = Field(default=None, primary_key=True)
     account_type: AccountType
     account_name: str  # discord username for discord-users; admin-entered for manual-users
     time_zone: str  # IANA name, FK -> TimeZone.iana_name
@@ -101,9 +117,8 @@ class Account:
     discord_avatar_url: str | None = None
     # OAuth tokens - populated at registration/login for DISCORD_USER accounts only.
     # Needed to support the "refresh from Discord" action (app/pages/accounts.py)
-    # without asking the user to log in again every time. NOTE: plain fields are
-    # fine for this in-memory mock phase; once there's a real DB these should be
-    # encrypted at rest rather than stored as plaintext columns.
+    # without asking the user to log in again every time. NOTE: plain columns are
+    # fine while this is a solo-dev sandbox; encrypt at rest before real use.
     discord_access_token: str | None = None
     discord_refresh_token: str | None = None
     discord_token_expires_at: datetime | None = None
@@ -111,9 +126,13 @@ class Account:
     # Audit columns. create_account_id is None for self-registered (Discord OAuth) accounts;
     # it's set to the admin's account_id for manually-created accounts.
     create_account_id: int | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
     update_account_id: int | None = None
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    @property
+    def id(self) -> int | None:  # transitional alias - see module docstring
+        return self.account_id
 
 
 @dataclass

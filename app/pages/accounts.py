@@ -232,7 +232,7 @@ def _open_add_account_dialog(*, on_added) -> None:
                 ui.notify("Select a time zone", type="warning")
                 return
             accounts.append(Account(
-                id=next_id(),
+                account_id=next_id(),
                 account_type=AccountType.MANUAL_USER,
                 account_name=name_input.value,
                 time_zone=tz_selector.value,

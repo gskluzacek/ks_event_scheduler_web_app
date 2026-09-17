@@ -70,7 +70,7 @@ def _open_add_timezone() -> None:
             if not (region.value and location.value):
                 ui.notify("Region and location are required", type="warning")
                 return
-            time_zones.append(TimeZone(id=next_id(), region=region.value, location=location.value))
+            time_zones.append(TimeZone(timezone_id=next_id(), region=region.value, location=location.value))
             dialog.close()
             timezone_panel.refresh()
 

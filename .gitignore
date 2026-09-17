@@ -45,3 +45,7 @@ pip-wheel-metadata/
 
 # ai generated files
 /ai_authored_content/
+
+# SQLite database (generated at runtime, don't commit)
+*.db
+*.db-journal

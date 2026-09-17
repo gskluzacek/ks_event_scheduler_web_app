@@ -16,13 +16,13 @@ from app.models.schema import (
 )
 
 time_zones: list[TimeZone] = [
-    TimeZone(next_id(), "America", "New_York"),
-    TimeZone(next_id(), "America", "Chicago"),
-    TimeZone(next_id(), "America", "Los_Angeles"),
-    TimeZone(next_id(), "Europe", "London"),
-    TimeZone(next_id(), "Europe", "Berlin"),
-    TimeZone(next_id(), "Asia", "Tokyo"),
-    TimeZone(next_id(), "Australia", "Sydney"),
+    TimeZone(timezone_id=next_id(), region="America", location="New_York"),
+    TimeZone(timezone_id=next_id(), region="America", location="Chicago"),
+    TimeZone(timezone_id=next_id(), region="America", location="Los_Angeles"),
+    TimeZone(timezone_id=next_id(), region="Europe", location="London"),
+    TimeZone(timezone_id=next_id(), region="Europe", location="Berlin"),
+    TimeZone(timezone_id=next_id(), region="Asia", location="Tokyo"),
+    TimeZone(timezone_id=next_id(), region="Australia", location="Sydney"),
 ]
 
 kingdoms: list[Kingdom] = [
@@ -79,7 +79,7 @@ alliances: list[Alliance] = [
 
 accounts: list[Account] = [
     Account(
-        id=next_id(),
+        account_id=next_id(),
         account_type=AccountType.DISCORD_USER,
         account_name="gskluzacek_test",
         time_zone="America/Chicago",
@@ -90,7 +90,7 @@ accounts: list[Account] = [
         is_super_admin=True,
     ),
     Account(
-        id=next_id(),
+        account_id=next_id(),
         account_type=AccountType.DISCORD_USER,
         account_name="marla_singer_2026_test",
         time_zone="America/New_York",
@@ -99,7 +99,7 @@ accounts: list[Account] = [
         discord_global_name="Marla Singer test",
     ),
     Account(
-        id=next_id(),
+        account_id=next_id(),
         account_type=AccountType.DISCORD_USER,
         account_name="tyler_durden_58_test",
         time_zone="Europe/London",
@@ -108,7 +108,7 @@ accounts: list[Account] = [
         discord_global_name="Tyler Durden test",
     ),
     Account(
-        id=next_id(),
+        account_id=next_id(),
         account_type=AccountType.DISCORD_USER,
         account_name="mr_roboto_1983",
         time_zone="Asia/Tokyo",
@@ -121,7 +121,7 @@ accounts: list[Account] = [
 # Example manual-user account, created by an admin (Greg) for a player without Discord.
 accounts.append(
     Account(
-        id=next_id(),
+        account_id=next_id(),
         account_type=AccountType.MANUAL_USER,
         account_name="max_manual_planck",
         time_zone="Europe/Berlin",
