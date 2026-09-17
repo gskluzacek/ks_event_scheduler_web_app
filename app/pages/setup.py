@@ -82,8 +82,11 @@ async def setup_page(error: str = "", authorized: str = "") -> None:
                         ui.notify("No valid rows found - check the region/location headers", type="warning")
                         return
                     inserted = await time_zones_repo.bulk_create_time_zones(rows)
+                    # Mutate in place (not `zones = ...`) so the same list object is also
+                    # what any already-built TimeZoneSelector below is holding onto.
+                    zones[:] = await time_zones_repo.list_time_zones()
                     skipped = len(rows) - inserted
-                    status.set_text(f"{len(zones) + inserted} time zones loaded.")
+                    status.set_text(f"{len(zones)} time zones loaded.")
                     message = f"Loaded {inserted} new time zones"
                     message += f" ({skipped} already loaded, skipped)" if skipped else ""
                     ui.notify(message, type="positive" if inserted else "info")
@@ -91,7 +94,16 @@ async def setup_page(error: str = "", authorized: str = "") -> None:
 
                 ui.upload(on_upload=handle_upload, auto_upload=True).props("accept=.csv").classes("w-full")
                 with ui.stepper_navigation():
-                    ui.button("Next", on_click=stepper.next)
+
+                    def go_to_admin_account() -> None:
+                        # Without this, clicking Next with nothing ever uploaded lands on a
+                        # time zone picker with zero regions/locations to choose from.
+                        if not zones:
+                            ui.notify("Please upload a time zone CSV file first", type="warning")
+                            return
+                        stepper.next()
+
+                    ui.button("Next", on_click=go_to_admin_account)
 
             with ui.step("Admin Account"):
                 if account_exists:
@@ -160,6 +172,14 @@ async def setup_page(error: str = "", authorized: str = "") -> None:
                             ui.notify("Setup is already complete.", type="info")
                             ui.navigate.to("/setup")
                             return
+                        # Also shouldn't be reachable given step 1's own guard, but this step's
+                        # body renders regardless of which step is active, so a stale render
+                        # (or a stepper header click, if that's ever enabled) could otherwise
+                        # get here with nothing to build the time zone picker from.
+                        if not zones:
+                            ui.notify("Please upload a time zone CSV file first", type="warning")
+                            stepper.previous()
+                            return
                         state = discord_oauth.generate_state()
                         app.storage.user[STATE_KEY] = state
                         app.storage.user[SETUP_MODE_KEY] = True
@@ -170,6 +190,8 @@ async def setup_page(error: str = "", authorized: str = "") -> None:
 
                 with ui.stepper_navigation():
                     ui.button("Back", on_click=stepper.previous).props("flat")
+                    if account_exists:
+                        ui.button("Next", on_click=stepper.next).props("unelevated color=primary")
 
             with ui.step("Kingdoms & Alliances"):
                 ui.label("Coming soon - for now, use Site Maintenance after setup.")
