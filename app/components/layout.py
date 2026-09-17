@@ -6,10 +6,18 @@ instead, each @ui.page function calls a shared Python function that builds
 the same header/footer elements. Because @ui.page runs its function fresh
 per visitor (nicegui_llms.md Mental Model #3), there's no risk of one user's
 header leaking into another's.
+
+frame() is an async context manager (rather than a plain @contextmanager)
+because it awaits role_switcher.load_accounts() once per page load before
+rendering the account/role picker - see role_switcher.py's module docstring
+for why that's a one-shot fetch rather than a live DB read on every call.
+Every caller now opens it with `async with layout.frame(...):`, which is why
+every @ui.page function below it is `async def` even where nothing else in
+that page needs to await.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 
 from nicegui import ui
 
@@ -27,16 +35,17 @@ NAV_ITEMS: list[tuple[str, str, str, tuple[Role, ...] | None]] = [
 ]
 
 
-@contextmanager
-def frame(active_route: str):
+@asynccontextmanager
+async def frame(active_route: str):
     """Wraps a page's content with the shared header/nav and a padded content column.
 
     Usage:
         @ui.page('/players')
-        def players_page():
-            with layout.frame('/players'):
+        async def players_page():
+            async with layout.frame('/players'):
                 ui.label('Player Management')
     """
+    await role_switcher.load_accounts()
     role = role_switcher.current_role()
 
     # Light blue-gray tint on every ui.table header, site-wide. A plain CSS rule

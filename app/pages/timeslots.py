@@ -158,9 +158,9 @@ def _filtered_slots() -> list[TimeSlot]:
 
 
 @ui.page("/timeslots")
-def timeslots_page() -> None:
+async def timeslots_page() -> None:
     ui.page_title("Time Slots - Kingshot Scheduler")
-    with layout.frame("/timeslots"):
+    async with layout.frame("/timeslots"):
         ui.label("Time Slot Management").classes("text-2xl font-bold")
         slot_filters()
         slot_table()

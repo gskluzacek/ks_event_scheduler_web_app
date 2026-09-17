@@ -10,9 +10,9 @@ from app.models.schema import Event, Role, next_id
 
 
 @ui.page("/events")
-def events_page() -> None:
+async def events_page() -> None:
     ui.page_title("Events - Kingshot Scheduler")
-    with layout.frame("/events"):
+    async with layout.frame("/events"):
         can_manage = role_switcher.is_at_least(Role.SCHEDULER_ADMIN, Role.POWER_ADMIN)
         with ui.row().classes("w-full items-center justify-between"):
             ui.label("Events").classes("text-2xl font-bold")

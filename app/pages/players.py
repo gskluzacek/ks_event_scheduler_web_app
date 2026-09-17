@@ -23,7 +23,8 @@ from nicegui import app, ui
 
 from app.auth.discord_guild import MembershipResult, build_guild_avatar_url, verify_guild_membership
 from app.components import layout, role_switcher
-from app.models.sample_data import accounts, alliances, kingdoms, players, time_slots
+from app.data import accounts as accounts_repo
+from app.models.sample_data import alliances, kingdoms, players, time_slots
 from app.models.schema import Account, AccountType, Player, Role, TOWN_CENTER_LEVELS, next_id
 from app.pages.account_player import (
     _admin_alliance_ids,
@@ -141,7 +142,7 @@ def _clear_player_filters() -> None:
     player_table.refresh()
 
 
-def _filtered_accounts() -> list[Account]:
+async def _filtered_accounts() -> list[Account]:
     """Accounts visible to this viewer (account_player._visible_accounts()),
     narrowed by the Kingdom/Alliance filters (via each account's *visible*
     players - so Admin/PowerAdmin can't use these to find alliances outside
@@ -152,7 +153,7 @@ def _filtered_accounts() -> list[Account]:
     against, so filtering by either necessarily excludes it (see Greg's
     decision on this).
     """
-    rows = _visible_accounts()
+    rows = await _visible_accounts()
 
     kingdom_id = get_id_filter(FILTER_KINGDOM_KEY, _visible_kingdom_ids())
     alliance_id = get_id_filter(FILTER_ALLIANCE_KEY, _visible_alliance_ids())
@@ -160,7 +161,7 @@ def _filtered_accounts() -> list[Account]:
         matching_account_ids = {
             p.account_id for p in _visible_players_matching(kingdom_id=kingdom_id, alliance_id=alliance_id)
         }
-        rows = [a for a in rows if a.id in matching_account_ids]
+        rows = [a for a in rows if a.account_id in matching_account_ids]
 
     account_name = get_text_filter(FILTER_ACCOUNT_NAME_KEY).strip().lower()
     if account_name:
@@ -195,9 +196,9 @@ def _account_players(account_id: int) -> list[Player]:
 
 
 @ui.page("/players")
-def players_page() -> None:
+async def players_page() -> None:
     ui.page_title("Accounts & Players - Kingshot Scheduler")
-    with layout.frame("/players"):
+    async with layout.frame("/players"):
         with ui.row().classes("w-full items-center justify-between"):
             ui.label("Account & Player Management").classes("text-2xl font-bold")
             if role_switcher.current_role() == Role.SUPER_ADMIN:
@@ -209,7 +210,7 @@ def players_page() -> None:
                 ).props("unelevated color=primary")
 
         player_filters()
-        player_table()
+        await player_table()
 
 
 @ui.refreshable
@@ -282,14 +283,14 @@ def player_filters() -> None:
             ui.button("Clear Filters", icon="close", on_click=_clear_player_filters).props("flat dense")
 
 
-def _player_rows(rows: list[Player], *, show_roles: bool) -> list[dict]:
+async def _player_rows(rows: list[Player], *, show_roles: bool) -> list[dict]:
     """Builds one display-ready dict per player (avatar url, resolved kingdom/
     alliance names, formatted power, etc.) - shared by every player card so
     the field set/formatting is defined exactly once.
     """
     alliance_by_id = {a.id: a for a in alliances}
     kingdom_name_by_id = {k.id: k.name for k in kingdoms}
-    account_by_id = {a.id: a for a in accounts}
+    account_by_id = {a.account_id: a for a in await accounts_repo.list_accounts()}
     slot_count_by_player_id: dict[int, int] = {}
     for slot in time_slots:
         slot_count_by_player_id[slot.player_id] = slot_count_by_player_id.get(slot.player_id, 0) + 1
@@ -371,7 +372,7 @@ def _render_account_card(account: Account, account_rows: list[tuple[Player, dict
     attached.
     """
     has_players = bool(account_rows)
-    expanded = has_players and account.id in _get_expanded_account_ids()
+    expanded = has_players and account.account_id in _get_expanded_account_ids()
 
     with ui.card().classes("w-full"):
         with ui.row().classes("items-center justify-between w-full"):
@@ -388,7 +389,7 @@ def _render_account_card(account: Account, account_rows: list[tuple[Player, dict
             with ui.row().classes("items-center gap-1"):
                 ui.button("View", icon="visibility", on_click=lambda a=account: _open_view_account_dialog(a)) \
                     .props("flat dense no-caps")
-                if _can_edit_account(account.id):
+                if _can_edit_account(account.account_id):
                     ui.button(
                         "Edit", icon="edit",
                         on_click=lambda a=account: _open_edit_account_dialog(
@@ -412,7 +413,7 @@ def _render_account_card(account: Account, account_rows: list[tuple[Player, dict
                         _render_player_card(player, row, show_roles=show_roles)
             child_area.set_visibility(expanded)
 
-            def toggle(acct_id=account.id, area=child_area, btn=toggle_button) -> None:
+            def toggle(acct_id=account.account_id, area=child_area, btn=toggle_button) -> None:
                 ids = _get_expanded_account_ids()
                 now_expanded = acct_id not in ids
                 if now_expanded:
@@ -429,14 +430,14 @@ def _render_account_card(account: Account, account_rows: list[tuple[Player, dict
 
 
 @ui.refreshable
-def player_table() -> None:
+async def player_table() -> None:
     # Roles are about role *management*, a PowerAdmin-only capability (see
     # web_app_requirements.md > Account Management #3) - hidden for other roles.
     show_roles = role_switcher.is_at_least(Role.POWER_ADMIN)
-    filtered_accounts = _filtered_accounts()
+    filtered_accounts = await _filtered_accounts()
 
     if not filtered_accounts:
-        if _visible_accounts():
+        if await _visible_accounts():
             ui.label("No accounts match the current filters.").classes("text-sm text-grey-5")
         else:
             ui.label("⚠️ No data available").classes("text-sm text-grey-5")
@@ -451,8 +452,8 @@ def player_table() -> None:
     page_accounts = sorted_accounts[start:start + ACCOUNTS_PAGE_SIZE]
 
     for account in page_accounts:
-        account_players = _account_players(account.id)
-        account_rows = list(zip(account_players, _player_rows(account_players, show_roles=show_roles)))
+        account_players = _account_players(account.account_id)
+        account_rows = list(zip(account_players, await _player_rows(account_players, show_roles=show_roles)))
         _render_account_card(account, account_rows, show_roles=show_roles)
 
     if total_pages > 1:
@@ -464,12 +465,12 @@ def player_table() -> None:
             ui.pagination(min=1, max=total_pages, value=page, direction_links=True, on_change=on_page_change)
 
 
-def _render_player_details(player: Player) -> None:
+async def _render_player_details(player: Player) -> None:
     """The read-only "detail view" body: avatar + name header, then every
     Player column. Shared verbatim between the View dialog and part 1 of
     the Edit dialog, so the two always stay in sync.
     """
-    account = next((a for a in accounts if a.id == player.account_id), None)
+    account = await accounts_repo.get_account(player.account_id)
     alliance = next((a for a in alliances if a.id == player.alliance_id), None)
     kingdom_name = next((k.name for k in kingdoms if alliance and k.id == alliance.kingdom_id), "?")
     avatar_url = player.discord_guild_avatar_url or (account.discord_avatar_url if account else None)
@@ -501,19 +502,21 @@ def _render_player_details(player: Player) -> None:
         ui.separator().classes("my-3")
         ui.label("Audit").classes("text-xs font-bold text-grey-6 uppercase")
         owner_time_zone = account.time_zone if account else "UTC"
-        _render_field("Created By", _resolve_account_name(player.create_account_id, account) if account else "—")
+        created_by = await _resolve_account_name(player.create_account_id, account) if account else "—"
+        _render_field("Created By", created_by)
         _render_field("Created At", _format_dt(player.created_at, owner_time_zone))
-        _render_field("Updated By", _resolve_account_name(player.update_account_id, account) if account else "—")
+        updated_by = await _resolve_account_name(player.update_account_id, account) if account else "—"
+        _render_field("Updated By", updated_by)
         _render_field("Updated At", _format_dt(player.updated_at, owner_time_zone))
 
 
-def _open_view_player_dialog(player: Player) -> None:
+async def _open_view_player_dialog(player: Player) -> None:
     """Read-only detail view - every Player column, with the two audit-trail
     account IDs resolved to names per the requirements.
     """
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
         ui.label("Player Details").classes("text-lg font-bold")
-        _render_player_details(player)
+        await _render_player_details(player)
 
         with ui.row().classes("w-full justify-end"):
             ui.button("Close", on_click=dialog.close).props("flat")
@@ -531,7 +534,7 @@ async def _do_discord_player_sync(player: Player, status_label: ui.label, on_upd
     card list while this dialog is open would close the dialog out from under
     the user. `on_updated` refreshes just the dialog's own detail-view section.
     """
-    account = next((a for a in accounts if a.id == player.account_id), None)
+    account = await accounts_repo.get_account(player.account_id)
     alliance = next((a for a in alliances if a.id == player.alliance_id), None)
     if account is None or account.account_type != AccountType.DISCORD_USER:
         ui.notify("This player's account has no Discord identity to sync from.", type="warning")
@@ -575,8 +578,8 @@ async def _do_discord_player_sync(player: Player, status_label: ui.label, on_upd
 ASSIGNABLE_ROLES = [Role.ADMIN, Role.POWER_ADMIN, Role.SCHEDULER_ADMIN]
 
 
-def _open_edit_player_dialog(player: Player) -> None:
-    account = next((a for a in accounts if a.id == player.account_id), None)
+async def _open_edit_player_dialog(player: Player) -> None:
+    account = await accounts_repo.get_account(player.account_id)
     is_discord_account = account is not None and account.account_type == AccountType.DISCORD_USER
     # Role *management* is a PowerAdmin/SuperAdmin capability (is_at_least() folds
     # SuperAdmin in automatically) - matches the read-only Roles display's gating
@@ -595,10 +598,10 @@ def _open_edit_player_dialog(player: Player) -> None:
         ui.label("Edit Player").classes("text-lg font-bold")
 
         @ui.refreshable
-        def details_view() -> None:
-            _render_player_details(player)
+        async def details_view() -> None:
+            await _render_player_details(player)
 
-        details_view()
+        await details_view()
 
         # Part 2: the actual editable controls.
         ui.separator().classes("my-3")
@@ -819,7 +822,7 @@ def _build_player_details_step(
         acting_account_id = role_switcher.current_account_id()
         players.append(Player(
             id=next_id(),
-            account_id=account.id,
+            account_id=account.account_id,
             alliance_id=verified_alliance_id["value"],
             kingshot_id=kingshot_id.value or "",
             kingshot_name=kingshot_name.value or "",
@@ -828,7 +831,7 @@ def _build_player_details_step(
             town_center_level=tc_level.value or TOWN_CENTER_LEVELS[0],
             roles=[Role.USER],
             discord_guild_avatar_url=guild_avatar_url,
-            create_account_id=None if acting_account_id == account.id else acting_account_id,
+            create_account_id=None if acting_account_id == account.account_id else acting_account_id,
             update_account_id=acting_account_id,
         ))
         dialog.close()

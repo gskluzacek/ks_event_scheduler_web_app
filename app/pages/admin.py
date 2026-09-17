@@ -8,9 +8,9 @@ from app.models.schema import Alliance, Kingdom, Role, TimeZone, next_id
 
 
 @ui.page("/admin")
-def admin_page() -> None:
+async def admin_page() -> None:
     ui.page_title("Site Maintenance - Kingshot Scheduler")
-    with layout.frame("/admin"):
+    async with layout.frame("/admin"):
         if not role_switcher.is_at_least(Role.SUPER_ADMIN):
             ui.label("SuperAdmin access required.").classes("text-negative text-lg")
             return

@@ -8,9 +8,9 @@ from app.models.schema import Role
 
 
 @ui.page("/search")
-def search_page() -> None:
+async def search_page() -> None:
     ui.page_title("Search - Kingshot Scheduler")
-    with layout.frame("/search"):
+    async with layout.frame("/search"):
         ui.label("Search").classes("text-2xl font-bold")
         elevated = role_switcher.is_at_least(Role.ADMIN, Role.POWER_ADMIN, Role.SCHEDULER_ADMIN)
 

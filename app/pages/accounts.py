@@ -16,15 +16,16 @@ two page modules.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from nicegui import ui
 
 from app.auth.discord_oauth import RefreshOutcome, refresh_discord_identity
 from app.components import role_switcher
 from app.components.timezone_select import TimeZoneSelector
-from app.models.sample_data import accounts
-from app.models.schema import Account, AccountType, Role, next_id
+from app.data import accounts as accounts_repo
+from app.data import time_zones as time_zones_repo
+from app.models.schema import Account, AccountType, Role
 from app.pages.account_player import _format_dt, _render_copyable_field, _render_field, _resolve_account_name
 from app.utils.rate_limit import check_and_record
 
@@ -32,7 +33,7 @@ REFRESH_RATE_LIMIT = 10
 REFRESH_RATE_WINDOW = timedelta(hours=4)
 
 
-def _render_account_details(account: Account) -> None:
+async def _render_account_details(account: Account) -> None:
     """The read-only "detail view" body: avatar + name header, then every
     Account column. Shared verbatim between the View dialog and part 1 of
     the Edit dialog, so the two always stay in sync.
@@ -46,7 +47,7 @@ def _render_account_details(account: Account) -> None:
         ui.label(account.account_name).classes("text-base font-bold")
 
     with ui.column().classes("w-full gap-1"):
-        _render_field("Account ID", str(account.id))
+        _render_field("Account ID", str(account.account_id))
         _render_field("Account Type", account.account_type.value)
         _render_field("Account Name", account.account_name)
         _render_field("Time Zone", account.time_zone)
@@ -61,19 +62,19 @@ def _render_account_details(account: Account) -> None:
 
         ui.separator().classes("my-3")
         ui.label("Audit").classes("text-xs font-bold text-grey-6 uppercase")
-        _render_field("Created By", _resolve_account_name(account.create_account_id, account))
+        _render_field("Created By", await _resolve_account_name(account.create_account_id, account))
         _render_field("Created At", _format_dt(account.created_at, account.time_zone))
-        _render_field("Updated By", _resolve_account_name(account.update_account_id, account))
+        _render_field("Updated By", await _resolve_account_name(account.update_account_id, account))
         _render_field("Updated At", _format_dt(account.updated_at, account.time_zone))
 
 
-def _open_view_account_dialog(account: Account) -> None:
+async def _open_view_account_dialog(account: Account) -> None:
     """Read-only detail view - every Account column, with the two audit-trail
     account IDs resolved to names per the requirements.
     """
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
         ui.label("Account Details").classes("text-lg font-bold")
-        _render_account_details(account)
+        await _render_account_details(account)
 
         with ui.row().classes("w-full justify-end"):
             ui.button("Close", on_click=dialog.close).props("flat")
@@ -81,10 +82,14 @@ def _open_view_account_dialog(account: Account) -> None:
     dialog.open()
 
 
-async def _do_discord_refresh(account: Account, remaining_label: ui.label, on_updated) -> None:
+async def _do_discord_refresh(account: Account, remaining_label: ui.label) -> Account | None:
     """Handler for the Edit dialog's "Refresh from Discord" button. Rate-limited
     per acting-user-per-target-account (see app/utils/rate_limit.py) regardless
     of whether the actor is the account owner or an Admin refreshing someone else.
+    Returns the updated account on success (so the caller can swap its local
+    reference and re-render), or None if nothing changed - a rate limit, a
+    Discord error, or no stored credentials, each already reported via
+    ui.notify()/remaining_label here.
 
     NOTE: this deliberately does NOT refresh players.py's account card list.
     The dialog this button lives in was opened from inside that refreshable
@@ -92,34 +97,36 @@ async def _do_discord_refresh(account: Account, remaining_label: ui.label, on_up
     dialog's lifetime to a "canary" element created in that same container
     (see nicegui/elements/dialog.py) - refreshing it while the dialog is still
     open destroys that canary and the dialog closes out from under the user.
-    `on_updated` instead refreshes just the dialog's own detail-view section;
+    The caller instead refreshes just the dialog's own detail-view section;
     the underlying card list picks up the change next time it's refreshed
     (e.g. when the dialog is closed - see _open_edit_account_dialog's
     dialog.on_value_change).
     """
     allowed, remaining, retry_after = check_and_record(
-        "discord_refresh", str(account.id), limit=REFRESH_RATE_LIMIT, window=REFRESH_RATE_WINDOW
+        "discord_refresh", str(account.account_id), limit=REFRESH_RATE_LIMIT, window=REFRESH_RATE_WINDOW
     )
     if not allowed:
         minutes = max(1, int(retry_after.total_seconds() // 60))
         ui.notify(f"Refresh limit reached for this account - try again in ~{minutes} min.", type="warning")
-        return
+        return None
 
     result = await refresh_discord_identity(account.discord_user_id, account.discord_refresh_token)
 
     if result.outcome == RefreshOutcome.SUCCESS:
-        account.discord_username = result.username
-        account.discord_global_name = result.global_name
-        account.discord_avatar_url = result.avatar_url
-        account.discord_access_token = result.access_token
-        account.discord_refresh_token = result.refresh_token
-        account.discord_token_expires_at = result.expires_at
-        account.update_account_id = role_switcher.current_account_id()
-        account.updated_at = datetime.utcnow()
+        updated = await accounts_repo.update_account(
+            account.account_id,
+            update_account_id=role_switcher.current_account_id(),
+            discord_username=result.username,
+            discord_global_name=result.global_name,
+            discord_avatar_url=result.avatar_url,
+            discord_access_token=result.access_token,
+            discord_refresh_token=result.refresh_token,
+            discord_token_expires_at=result.expires_at,
+        )
         remaining_label.set_text(f"{remaining} refresh(es) left in this 4-hour window.")
-        on_updated()
         ui.notify("Discord details refreshed.", type="positive")
-    elif result.outcome == RefreshOutcome.NO_CREDENTIALS:
+        return updated
+    if result.outcome == RefreshOutcome.NO_CREDENTIALS:
         ui.notify(
             "No stored Discord credentials for this account - the user needs to log in "
             "again via Discord before this can be refreshed.", type="warning",
@@ -131,9 +138,10 @@ async def _do_discord_refresh(account: Account, remaining_label: ui.label, on_up
         )
     else:
         ui.notify(f"Could not refresh from Discord: {result.detail}", type="negative")
+    return None
 
 
-def _open_edit_account_dialog(account: Account, *, on_saved) -> None:
+async def _open_edit_account_dialog(account: Account, *, on_saved) -> None:
     """`on_saved` is called after a successful Save, and also whenever the
     dialog closes any other way (Cancel/Esc/backdrop) - the latter catches a
     Discord refresh that was never explicitly "Saved" but still changed the
@@ -141,6 +149,17 @@ def _open_edit_account_dialog(account: Account, *, on_saved) -> None:
     (players.py) rather than refreshed directly here, to avoid a circular
     import between accounts.py and players.py.
     """
+    # _do_discord_refresh() updates the DB row in place (no delete/insert) but
+    # hands back a new, separately-fetched Account object reflecting it - the
+    # `account` object this dialog was opened with is now stale, since it was
+    # never attached to a session that could pick up the change (see
+    # app/data/accounts.py's module docstring: per-call sessions, no mirror).
+    # This box is what lets details_view() re-render against the fresh object
+    # without the rest of this closure (submit(), the is_super_admin_checkbox
+    # guard, etc.) needing to know a refresh ever happened.
+    current = {"account": account}
+    zones = await time_zones_repo.list_time_zones()
+
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
         # Part 1: identical read-only detail view to the View dialog, wrapped in its
         # own refreshable so a Discord refresh can update it in place without
@@ -148,10 +167,10 @@ def _open_edit_account_dialog(account: Account, *, on_saved) -> None:
         ui.label("Edit Account").classes("text-lg font-bold")
 
         @ui.refreshable
-        def details_view() -> None:
-            _render_account_details(account)
+        async def details_view() -> None:
+            await _render_account_details(current["account"])
 
-        details_view()
+        await details_view()
 
         # Part 2: the actual editable controls.
         ui.separator().classes("my-3")
@@ -167,36 +186,42 @@ def _open_edit_account_dialog(account: Account, *, on_saved) -> None:
         else:
             remaining_label = ui.label("Discord username, name, and avatar cannot be edited directly.") \
                 .classes("text-xs text-grey-6")
-            ui.button(
-                "Refresh from Discord", icon="refresh",
-                on_click=lambda: _do_discord_refresh(account, remaining_label, details_view.refresh),
-            ).props("outlined dense no-caps")
+
+            async def do_refresh() -> None:
+                updated = await _do_discord_refresh(current["account"], remaining_label)
+                if updated is not None:
+                    current["account"] = updated
+                    details_view.refresh()
+
+            ui.button("Refresh from Discord", icon="refresh", on_click=do_refresh) \
+                .props("outlined dense no-caps")
 
         ui.label("Time Zone").classes("text-sm text-grey-6 mt-2")
-        tz_selector = TimeZoneSelector(value=account.time_zone)
+        tz_selector = TimeZoneSelector(zones, value=account.time_zone)
 
         # SuperAdmin-only, and only when editing someone else's account - granting
         # yourself SuperAdmin from your own Edit dialog isn't something this control
         # should allow (per Greg's requirement: "other than his own").
         is_super_admin_checkbox = None
         if role_switcher.current_role() == Role.SUPER_ADMIN \
-                and account.id != role_switcher.current_account_id():
+                and account.account_id != role_switcher.current_account_id():
             is_super_admin_checkbox = ui.checkbox("Super Admin", value=account.is_super_admin)
 
-        def submit() -> None:
+        async def submit() -> None:
             if name_input is not None and not name_input.value:
                 ui.notify("Account name is required", type="warning")
                 return
             if not tz_selector.value:
                 ui.notify("Select a time zone", type="warning")
                 return
+            fields = {"time_zone": tz_selector.value}
             if name_input is not None:
-                account.account_name = name_input.value
-            account.time_zone = tz_selector.value
+                fields["account_name"] = name_input.value
             if is_super_admin_checkbox is not None:
-                account.is_super_admin = is_super_admin_checkbox.value
-            account.update_account_id = role_switcher.current_account_id()
-            account.updated_at = datetime.utcnow()
+                fields["is_super_admin"] = is_super_admin_checkbox.value
+            await accounts_repo.update_account(
+                current["account"].account_id, update_account_id=role_switcher.current_account_id(), **fields,
+            )
             dialog.close()
             on_saved()
             ui.notify("Account updated", type="positive")
@@ -211,34 +236,35 @@ def _open_edit_account_dialog(account: Account, *, on_saved) -> None:
     dialog.open()
 
 
-def _open_add_account_dialog(*, on_added) -> None:
+async def _open_add_account_dialog(*, on_added) -> None:
     """SuperAdmin-only (see players.py's players_page()) - creates a manual
     account with no players yet. `on_added` is supplied by the caller rather
     than refreshed directly here, to avoid a circular import with players.py.
     """
+    zones = await time_zones_repo.list_time_zones()
+
     with ui.dialog() as dialog, ui.card().classes("w-96"):
         ui.label("Add Account").classes("text-lg font-bold")
         ui.label("Creates a manual account with no players yet - use each account "
                  "card's Add Player button afterwards to attach one.").classes("text-xs text-grey-6")
 
         name_input = ui.input("Account Name").props("outlined").classes("w-full")
-        tz_selector = TimeZoneSelector()
+        tz_selector = TimeZoneSelector(zones)
 
-        def submit() -> None:
+        async def submit() -> None:
             if not name_input.value:
                 ui.notify("Account name is required", type="warning")
                 return
             if not tz_selector.value:
                 ui.notify("Select a time zone", type="warning")
                 return
-            accounts.append(Account(
-                account_id=next_id(),
+            acting_account_id = role_switcher.current_account_id()
+            await accounts_repo.create_account(
                 account_type=AccountType.MANUAL_USER,
                 account_name=name_input.value,
                 time_zone=tz_selector.value,
-                create_account_id=role_switcher.current_account_id(),
-                update_account_id=role_switcher.current_account_id(),
-            ))
+                create_account_id=acting_account_id,
+            )
             dialog.close()
             on_added()
             ui.notify("Account added", type="positive")

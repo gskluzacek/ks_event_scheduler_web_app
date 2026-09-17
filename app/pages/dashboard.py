@@ -7,9 +7,9 @@ from app.models.sample_data import accounts, events, players, time_slots
 
 
 @ui.page("/dashboard")
-def dashboard_page() -> None:
+async def dashboard_page() -> None:
     ui.page_title("Dashboard - Kingshot Scheduler")
-    with layout.frame("/dashboard"):
+    async with layout.frame("/dashboard"):
         role = role_switcher.current_role()
         ui.label(f"Welcome back — previewing as {role.value}").classes("text-2xl font-bold")
 

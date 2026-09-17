@@ -18,7 +18,8 @@ from dateutil import tz as dateutil_tz
 from nicegui import ui
 
 from app.components import role_switcher
-from app.models.sample_data import accounts, players
+from app.data import accounts as accounts_repo
+from app.models.sample_data import players
 from app.models.schema import Account, Role
 
 
@@ -71,7 +72,7 @@ def _set_enabled(element, enabled: bool) -> None:
         element.props("disable")
 
 
-def _resolve_account_name(account_id: int | None, owner: Account) -> str:
+async def _resolve_account_name(account_id: int | None, owner: Account) -> str:
     """Resolves an audit column (create_account_id/update_account_id) to a
     display name. A None value means self-registered/self-added (see
     schema.py's Account/Player docstrings) - so it's the owning account's own
@@ -80,11 +81,11 @@ def _resolve_account_name(account_id: int | None, owner: Account) -> str:
     """
     if account_id is None:
         return f"{owner.account_name} (self-registered)"
-    match = next((a for a in accounts if a.id == account_id), None)
+    match = await accounts_repo.get_account(account_id)
     return match.account_name if match else f"Unknown (id={account_id})"
 
 
-def _visible_accounts() -> list[Account]:
+async def _visible_accounts() -> list[Account]:
     """Admin/PowerAdmin/SuperAdmin see every account, regardless of how many -
     or how few - players it has. A plain User or SchedulerAdmin only ever
     sees their own account.
@@ -95,9 +96,10 @@ def _visible_accounts() -> list[Account]:
     Admin can see every account exists, just not every player inside it, and
     can't edit accounts other than their own (see _can_edit_account()).
     """
+    all_accounts = await accounts_repo.list_accounts()
     if role_switcher.is_at_least(Role.ADMIN, Role.POWER_ADMIN):
-        return accounts
-    return [a for a in accounts if a.id == role_switcher.current_account_id()]
+        return all_accounts
+    return [a for a in all_accounts if a.account_id == role_switcher.current_account_id()]
 
 
 def _can_edit_account(account_id: int) -> bool:
