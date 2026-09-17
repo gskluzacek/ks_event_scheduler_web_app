@@ -5,25 +5,32 @@ Per web_app_requirements.md > time_zone: a single dropdown of every IANA name
 gets unwieldy as the list grows, so instead we pick region first (e.g.
 "America"), which narrows a second dropdown to just that region's locations
 (e.g. "Chicago"). The full IANA name is the two values joined with "/".
+
+Takes its `zones` as a plain argument rather than importing a fixed list -
+callers fetch whatever list is right for them (real DB rows for the setup
+wizard, the sample_data fixture for the still-mock /register/complete flow)
+and pass it in, so this component doesn't need to know or care where it
+came from.
 """
 from __future__ import annotations
 
 from nicegui import ui
 
-from app.models.sample_data import time_zones
+from app.models.schema import TimeZone
 
 
 class TimeZoneSelector:
     """Renders the two selects (call inside the layout where they should appear).
 
     Usage:
-        tz_selector = TimeZoneSelector()
+        tz_selector = TimeZoneSelector(zones)
         ...
         iana_name = tz_selector.value  # None until both dropdowns are chosen
     """
 
-    def __init__(self, value: str | None = None) -> None:
-        regions = sorted({z.region for z in time_zones})
+    def __init__(self, zones: list[TimeZone], value: str | None = None) -> None:
+        self._zones = zones
+        regions = sorted({z.region for z in zones})
         initial_region, initial_location = value.split("/", 1) if value else (None, None)
 
         with ui.row().classes("w-full gap-2"):
@@ -45,14 +52,13 @@ class TimeZoneSelector:
         self.location_select.on_value_change(self._update_offset_label)
         self._update_offset_label()
 
-    @staticmethod
-    def _locations_for(region: str | None) -> list[str]:
+    def _locations_for(self, region: str | None) -> list[str]:
         if not region:
             return []
-        return sorted(z.location for z in time_zones if z.region == region)
+        return sorted(z.location for z in self._zones if z.region == region)
 
     def _update_offset_label(self) -> None:
-        tz = next((z for z in time_zones if z.iana_name == self.value), None)
+        tz = next((z for z in self._zones if z.iana_name == self.value), None)
         self.offset_label.set_text(f"Current offset: {tz.current_utc_offset()}" if tz else "")
 
     @property

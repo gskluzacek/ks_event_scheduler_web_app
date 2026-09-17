@@ -1,3 +1,9 @@
+"""
+Account repository. Plain per-call SQLite queries - no in-memory mirror (see
+app/data/__init__.py: each function reads/writes exactly what its caller
+needs, right when it's called, same as any other DB-backed page will once
+migrated).
+"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -9,18 +15,12 @@ from app.db import get_session
 from app.models.schema import Account, AccountType
 
 
-def _count() -> int:
+def _has_any() -> bool:
     with get_session() as session:
-        return len(session.exec(select(Account)).all())
+        return session.exec(select(Account).limit(1)).first() is not None
 
 
-def _get(account_id: int) -> Account | None:
-    with get_session() as session:
-        return session.get(Account, account_id)
-
-
-def _create(**fields) -> Account:
-    account = Account(**fields)
+def _insert(account: Account) -> Account:
     with get_session() as session:
         session.add(account)
         session.commit()
@@ -28,12 +28,8 @@ def _create(**fields) -> Account:
         return account
 
 
-async def count_accounts() -> int:
-    return await run.io_bound(_count)
-
-
-async def get_account(account_id: int) -> Account | None:
-    return await run.io_bound(_get, account_id)
+async def has_any_account() -> bool:
+    return await run.io_bound(_has_any)
 
 
 async def create_account(
@@ -50,8 +46,7 @@ async def create_account(
     discord_access_token, discord_refresh_token, discord_token_expires_at) -
     omit them entirely for a manual-user account."""
     now = datetime.utcnow()
-    return await run.io_bound(
-        _create,
+    account = Account(
         account_type=account_type,
         account_name=account_name,
         time_zone=time_zone,
@@ -62,3 +57,4 @@ async def create_account(
         updated_at=now,
         **discord_fields,
     )
+    return await run.io_bound(_insert, account)

@@ -7,10 +7,11 @@ stays thin. This mirrors the "Multi-Page App Pattern" in nicegui_llms.md.
 """
 from __future__ import annotations
 
-from nicegui import ui
+from nicegui import app, ui
 
 from app.db import init_db
-from app.pages import admin, auth, dashboard, events, players, search, timeslots
+from app.pages import admin, auth, dashboard, events, players, search, setup, timeslots
+from app.setup_gate import SetupGateMiddleware
 
 # NOTE: app.pages.accounts has no @ui.page route anymore - it's imported by
 # players.py directly (account CRUD is surfaced from the Accounts & Players
@@ -24,6 +25,7 @@ def index() -> None:
 
 init_db()
 auth.register_fastapi_routes()
+app.add_middleware(SetupGateMiddleware)
 
 ui.run(
     title="Kingshot Scheduler",

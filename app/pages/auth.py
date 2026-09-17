@@ -13,6 +13,13 @@ NOTE: The callback is a plain FastAPI route (`@app.get`), not a `@ui.page` -
 NiceGUI mounts on top of FastAPI, so ordinary FastAPI routes work side by
 side with `@ui.page` routes for exactly this kind of external-redirect case
 (nicegui_llms.md > Global App & Lifecycle > "Custom FastAPI routes").
+
+The same Discord login is reused by the first-run setup wizard
+(app/pages/setup.py) to create the initial, real (DB-backed) SuperAdmin
+account. SETUP_MODE_KEY, set right before redirecting to Discord, is how
+discord_callback() tells the two flows apart and sends the browser back to
+the right completion page; discord_account_fields() is the bit of Discord ->
+Account field mapping both completion pages need.
 """
 from __future__ import annotations
 
@@ -22,12 +29,33 @@ from nicegui import app, ui
 
 from app.auth import discord_oauth
 from app.components.timezone_select import TimeZoneSelector
-from app.models.sample_data import accounts
+from app.models.sample_data import accounts, time_zones
 from app.models.schema import Account, AccountType, next_id
 
 STATE_KEY = "oauth_state"
+SETUP_MODE_KEY = "setup_mode"
 PENDING_DISCORD_USER_KEY = "pending_discord_user"
 PENDING_DISCORD_TOKEN_KEY = "pending_discord_token"
+
+
+def discord_account_fields(discord_user: dict, token_data: dict) -> dict:
+    """Discord identity -> Account field mapping shared by /register/complete
+    and the setup wizard's admin-account step, so the two stay in sync."""
+    username = discord_user.get("username", "unknown")
+    return dict(
+        account_name=username,
+        discord_user_id=str(discord_user["id"]),
+        discord_username=username,
+        discord_global_name=discord_user.get("global_name"),
+        discord_avatar_url=discord_oauth.build_avatar_url(
+            str(discord_user["id"]), discord_user.get("avatar")
+        ),
+        discord_access_token=token_data.get("access_token"),
+        discord_refresh_token=token_data.get("refresh_token"),
+        discord_token_expires_at=(
+            discord_oauth.token_expiry_from(token_data) if token_data else None
+        ),
+    )
 
 
 @ui.page("/register")
@@ -67,12 +95,14 @@ def register_fastapi_routes() -> None:
         except Exception as exc:  # noqa: BLE001 - surfacing any Discord/network failure to the user
             return RedirectResponse(f"/register?error={type(exc).__name__}")
 
-        # Stash the tokens alongside the identity - register_complete_page() needs them
+        # Stash the tokens alongside the identity - the completion page needs them
         # to populate Account.discord_access_token/discord_refresh_token so the
         # "Refresh from Discord" action (app/pages/accounts.py) works later without
         # asking the user to log in again.
         app.storage.user[PENDING_DISCORD_USER_KEY] = discord_user
         app.storage.user[PENDING_DISCORD_TOKEN_KEY] = token_data
+        if app.storage.user.pop(SETUP_MODE_KEY, False):
+            return RedirectResponse("/setup/admin-account")
         return RedirectResponse("/register/complete")
 
 
@@ -90,30 +120,18 @@ def register_complete_page() -> None:
         ui.label(f"Welcome, {discord_user.get('username')}!").classes("text-2xl font-bold")
         ui.label("Just need a couple more details to finish setting up your account.")
 
-        tz_selector = TimeZoneSelector()
+        tz_selector = TimeZoneSelector(time_zones)
 
         def submit() -> None:
             if not tz_selector.value:
                 ui.notify("Please select a region and location", type="warning")
                 return
-            username = discord_user.get("username", "unknown")
             token_data = app.storage.user.get(PENDING_DISCORD_TOKEN_KEY, {})
             account = Account(
                 account_id=next_id(),
                 account_type=AccountType.DISCORD_USER,
-                account_name=username,
                 time_zone=tz_selector.value,
-                discord_user_id=str(discord_user["id"]),
-                discord_username=username,
-                discord_global_name=discord_user.get("global_name"),
-                discord_avatar_url=discord_oauth.build_avatar_url(
-                    str(discord_user["id"]), discord_user.get("avatar")
-                ),
-                discord_access_token=token_data.get("access_token"),
-                discord_refresh_token=token_data.get("refresh_token"),
-                discord_token_expires_at=(
-                    discord_oauth.token_expiry_from(token_data) if token_data else None
-                ),
+                **discord_account_fields(discord_user, token_data),
             )
             accounts.append(account)
             del app.storage.user[PENDING_DISCORD_USER_KEY]
