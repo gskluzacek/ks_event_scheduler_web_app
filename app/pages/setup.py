@@ -20,6 +20,7 @@ import csv
 import io
 
 from nicegui import app, ui
+from sqlalchemy.exc import IntegrityError
 
 from app.auth import discord_oauth
 from app.components.timezone_select import TimeZoneSelector
@@ -93,13 +94,34 @@ async def setup_page(error: str = "") -> None:
                         if not tz_selector.value:
                             ui.notify("Please select a region and location", type="warning")
                             return
+                        # Guards against the exact bug this closure exists to prevent: this
+                        # page's steps are rendered once and just shown/hidden client-side
+                        # after that, so a stale render of this step (e.g. reached via the
+                        # stepper's Back button after setup already completed once, in
+                        # another step or another tab) must not be allowed to insert a
+                        # second account - see start_setup_login()'s matching guard below.
+                        if await accounts_repo.has_any_account():
+                            ui.notify("An admin account already exists - setup is already complete.", type="warning")
+                            app.storage.user.pop(PENDING_DISCORD_USER_KEY, None)
+                            app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
+                            ui.navigate.to("/setup")
+                            return
                         token_data = app.storage.user.get(PENDING_DISCORD_TOKEN_KEY, {})
-                        await accounts_repo.create_account(
-                            account_type=AccountType.DISCORD_USER,
-                            time_zone=tz_selector.value,
-                            is_super_admin=True,
-                            **discord_account_fields(discord_user, token_data),
-                        )
+                        try:
+                            await accounts_repo.create_account(
+                                account_type=AccountType.DISCORD_USER,
+                                time_zone=tz_selector.value,
+                                is_super_admin=True,
+                                **discord_account_fields(discord_user, token_data),
+                            )
+                        except IntegrityError:
+                            # Last-resort net under the has_any_account() check above, for
+                            # the truly-concurrent case (e.g. two tabs submitting at once).
+                            ui.notify("An account for this Discord user already exists.", type="warning")
+                            app.storage.user.pop(PENDING_DISCORD_USER_KEY, None)
+                            app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
+                            ui.navigate.to("/setup")
+                            return
                         app.storage.user.pop(PENDING_DISCORD_USER_KEY, None)
                         app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
                         ui.notify("SuperAdmin account created!", type="positive")
@@ -109,7 +131,14 @@ async def setup_page(error: str = "") -> None:
                 else:
                     ui.label("Create the initial SuperAdmin account via Discord.")
 
-                    def start_setup_login() -> None:
+                    async def start_setup_login() -> None:
+                        # Same stale-render concern as submit() above, checked here too so a
+                        # reused "Continue with Discord" button doesn't even burn the round
+                        # trip to Discord before finding out setup's already done.
+                        if await accounts_repo.has_any_account():
+                            ui.notify("Setup is already complete.", type="info")
+                            ui.navigate.to("/setup")
+                            return
                         state = discord_oauth.generate_state()
                         app.storage.user[STATE_KEY] = state
                         app.storage.user[SETUP_MODE_KEY] = True

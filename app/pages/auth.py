@@ -34,6 +34,7 @@ from nicegui import app, ui
 
 from app.auth import discord_oauth
 from app.components.timezone_select import TimeZoneSelector
+from app.data import accounts as accounts_repo
 from app.models.sample_data import accounts, time_zones
 from app.models.schema import Account, AccountType, next_id
 
@@ -109,6 +110,11 @@ def register_fastapi_routes() -> None:
         # to populate Account.discord_access_token/discord_refresh_token so the
         # "Refresh from Discord" action (app/pages/accounts.py) works later without
         # asking the user to log in again.
+        if setup_mode and await accounts_repo.has_any_account():
+            # Setup already completed (e.g. via another tab, or this same redirect URL
+            # replayed from browser history) while this login was in flight - don't
+            # stash a second pending identity for the wizard to act on.
+            return RedirectResponse("/setup")
         app.storage.user[PENDING_DISCORD_USER_KEY] = discord_user
         app.storage.user[PENDING_DISCORD_TOKEN_KEY] = token_data
         return RedirectResponse("/setup" if setup_mode else "/register/complete")

@@ -25,7 +25,8 @@ from enum import Enum
 from itertools import count
 
 from dateutil import tz
-from sqlmodel import Field, SQLModel, UniqueConstraint
+from sqlalchemy import Enum as SAEnum
+from sqlmodel import CheckConstraint, Field, SQLModel, UniqueConstraint
 
 _id_counter = count(1)
 
@@ -106,9 +107,33 @@ class Alliance:
 
 class Account(SQLModel, table=True):
     __tablename__ = "account"
+    # NULLs don't collide under a unique constraint, so manual accounts
+    # (discord_user_id always None) are unaffected by that one - it only stops
+    # a second account from ever being created for the same real Discord
+    # identity. account_name IS required to be globally unique, manual
+    # accounts included - two accounts with the same display name would be
+    # genuinely confusing (per Greg, 2026-09). The CHECK constraint is a
+    # last line of defense against a bad account_type getting written by
+    # something other than this app's own Account(...) + Pydantic validation
+    # (e.g. a different tool editing the SQLite file directly) - kept in sync
+    # with AccountType's actual values rather than hardcoded.
+    __table_args__ = (
+        UniqueConstraint("discord_user_id", name="uq_account_discord_user_id"),
+        UniqueConstraint("account_name", name="uq_account_account_name"),
+        CheckConstraint(
+            "account_type IN (" + ", ".join(f"'{t.value}'" for t in AccountType) + ")",
+            name="ck_account_account_type",
+        ),
+    )
 
     account_id: int | None = Field(default=None, primary_key=True)
-    account_type: AccountType
+    # Explicit sa_type: SQLAlchemy's default Enum column stores the member's
+    # NAME ("MANUAL_USER"), not AccountType's own .value ("manual-user") - this
+    # makes it store .value instead, which is what the CHECK constraint below
+    # (and anything inspecting the raw SQLite file) expects.
+    account_type: AccountType = Field(
+        sa_type=SAEnum(AccountType, values_callable=lambda enum_cls: [e.value for e in enum_cls])
+    )
     account_name: str  # discord username for discord-users; admin-entered for manual-users
     time_zone: str  # IANA name, FK -> TimeZone.iana_name
     # Discord fields - populated for AccountType.DISCORD_USER, None for AccountType.MANUAL_USER
