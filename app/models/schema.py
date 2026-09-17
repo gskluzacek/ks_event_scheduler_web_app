@@ -25,7 +25,7 @@ from enum import Enum
 from itertools import count
 
 from dateutil import tz
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, UniqueConstraint
 
 _id_counter = count(1)
 
@@ -66,6 +66,7 @@ class TimeZone(SQLModel, table=True):
     so the UI can offer two cascading dropdowns instead of one very long list!
     """
     __tablename__ = "time_zone"
+    __table_args__ = (UniqueConstraint("region", "location", name="uq_time_zone_region_location"),)
 
     timezone_id: int | None = Field(default=None, primary_key=True)
     region: str      # e.g. "America" - the part before the "/"

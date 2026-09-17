@@ -3,9 +3,14 @@ Account registration: real Discord OAuth2 (identify scope), no guild check.
 
 Flow (per web_app_requirements.md > Account Registration flow):
   1. /register shows "Login with Discord" -> redirects to Discord's authorize URL
-  2. Discord redirects back to the FastAPI route /auth/discord/callback with ?code&state
-  3. We validate state, exchange the code, fetch the Discord identity,
-     stash it in app.storage.user, and send the browser to /register/complete
+  2. Discord redirects back to the FastAPI route /auth/discord/callback with
+     ?code&state on success, or ?error=... (e.g. "access_denied" if the user
+     clicks Cancel on Discord's consent screen) instead of ?code
+  3. On success, we validate state, exchange the code, fetch the Discord
+     identity, stash it in app.storage.user, and send the browser to
+     /register/complete. On any failure, we send it back to wherever the
+     login was started from (/register, or /setup if SETUP_MODE_KEY was set),
+     with ?error=... so that page can show what went wrong.
   4. /register/complete asks for time zone (+ other account fields) and inserts
      into the in-memory `accounts` list on submit
 
@@ -18,8 +23,8 @@ The same Discord login is reused by the first-run setup wizard
 (app/pages/setup.py) to create the initial, real (DB-backed) SuperAdmin
 account. SETUP_MODE_KEY, set right before redirecting to Discord, is how
 discord_callback() tells the two flows apart and sends the browser back to
-the right completion page; discord_account_fields() is the bit of Discord ->
-Account field mapping both completion pages need.
+the right place either way; discord_account_fields() is the bit of Discord ->
+Account field mapping both completion flows need.
 """
 from __future__ import annotations
 
@@ -84,16 +89,21 @@ def register_fastapi_routes() -> None:
     """Registers the OAuth callback as a plain FastAPI route. Call once from main.py."""
 
     @app.get("/auth/discord/callback")
-    async def discord_callback(request: Request, code: str = "", state: str = ""):
+    async def discord_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+        setup_mode = app.storage.user.pop(SETUP_MODE_KEY, False)
+        error_redirect = "/setup" if setup_mode else "/register"
         expected_state = app.storage.user.get(STATE_KEY)
+
+        if error:  # e.g. "access_denied" - the user clicked Cancel on Discord's consent screen
+            return RedirectResponse(f"{error_redirect}?error={error}")
         if not state or state != expected_state:
-            return RedirectResponse("/register?error=invalid_state")
+            return RedirectResponse(f"{error_redirect}?error=invalid_state")
 
         try:
             token_data = await discord_oauth.exchange_code_for_token(code)
             discord_user = await discord_oauth.fetch_discord_user(token_data["access_token"])
         except Exception as exc:  # noqa: BLE001 - surfacing any Discord/network failure to the user
-            return RedirectResponse(f"/register?error={type(exc).__name__}")
+            return RedirectResponse(f"{error_redirect}?error={type(exc).__name__}")
 
         # Stash the tokens alongside the identity - the completion page needs them
         # to populate Account.discord_access_token/discord_refresh_token so the
@@ -101,9 +111,7 @@ def register_fastapi_routes() -> None:
         # asking the user to log in again.
         app.storage.user[PENDING_DISCORD_USER_KEY] = discord_user
         app.storage.user[PENDING_DISCORD_TOKEN_KEY] = token_data
-        if app.storage.user.pop(SETUP_MODE_KEY, False):
-            return RedirectResponse("/setup/admin-account")
-        return RedirectResponse("/register/complete")
+        return RedirectResponse("/setup" if setup_mode else "/register/complete")
 
 
 @ui.page("/register/complete")

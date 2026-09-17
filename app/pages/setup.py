@@ -10,8 +10,8 @@ Three steps (per web_app_requirements.md, extended with a couple more
 questions Greg answered directly rather than in that doc):
   1. Upload a CSV of IANA time zones (columns: region, location) -> time_zone table
   2. Create the initial SuperAdmin account via the normal Discord OAuth flow
-     (see app/pages/auth.py) - lands on setup_admin_account_page() below
-     instead of /register/complete, and sets is_super_admin=True
+     (see app/pages/auth.py), landing back on THIS page (not a separate one -
+     see the "Admin Account" step below) with is_super_admin=True
   3. Stub for a future kingdoms/alliances import - not built yet
 """
 from __future__ import annotations
@@ -36,15 +36,21 @@ from app.pages.auth import (
 
 
 @ui.page("/setup")
-async def setup_page() -> None:
+async def setup_page(error: str = "") -> None:
     ui.page_title("Setup - Kingshot Scheduler")
 
     zones = await time_zones_repo.list_time_zones()
     account_exists = await accounts_repo.has_any_account()
     initial_step = "Kingdoms & Alliances" if account_exists else "Admin Account" if zones else "Time Zones"
+    # Discord's own redirect back here (success or Cancel) is what lands us on this
+    # page in setup mode with a possibly-pending identity - see auth.discord_callback().
+    discord_user = app.storage.user.get(PENDING_DISCORD_USER_KEY)
 
     with ui.column().classes("w-full max-w-lg mx-auto gap-4 p-12"):
         ui.label("Kingshot Scheduler Setup").classes("text-2xl font-bold")
+        if error:
+            ui.label(f"Discord login didn't complete ({error}) - please try again.") \
+                .classes("text-negative")
 
         with ui.stepper(value=initial_step).props("vertical").classes("w-full") as stepper:
             with ui.step("Time Zones"):
@@ -61,9 +67,12 @@ async def setup_page() -> None:
                     if not rows:
                         ui.notify("No valid rows found - check the region/location headers", type="warning")
                         return
-                    await time_zones_repo.bulk_create_time_zones(rows)
-                    status.set_text(f"{len(rows)} time zones loaded.")
-                    ui.notify(f"Loaded {len(rows)} time zones", type="positive")
+                    inserted = await time_zones_repo.bulk_create_time_zones(rows)
+                    skipped = len(rows) - inserted
+                    status.set_text(f"{len(zones) + inserted} time zones loaded.")
+                    message = f"Loaded {inserted} new time zones"
+                    message += f" ({skipped} already loaded, skipped)" if skipped else ""
+                    ui.notify(message, type="positive" if inserted else "info")
                     stepper.next()
 
                 ui.upload(on_upload=handle_upload, auto_upload=True).props("accept=.csv").classes("w-full")
@@ -71,16 +80,44 @@ async def setup_page() -> None:
                     ui.button("Next", on_click=stepper.next)
 
             with ui.step("Admin Account"):
-                ui.label("Create the initial SuperAdmin account via Discord.")
+                if discord_user:
+                    # Back from Discord (success) - collect the account's time zone right
+                    # here, still inside the wizard, rather than sending the user to yet
+                    # another page. "Back" from step 3 lands right back on this same form,
+                    # with no need to re-authorize, since discord_user is still pending.
+                    ui.label(f"Welcome, {discord_user.get('username')}!").classes("font-bold")
+                    ui.label("This account will be the site's SuperAdmin.")
+                    tz_selector = TimeZoneSelector(zones)
 
-                def start_setup_login() -> None:
-                    state = discord_oauth.generate_state()
-                    app.storage.user[STATE_KEY] = state
-                    app.storage.user[SETUP_MODE_KEY] = True
-                    ui.navigate.to(discord_oauth.build_authorize_url(state))
+                    async def submit() -> None:
+                        if not tz_selector.value:
+                            ui.notify("Please select a region and location", type="warning")
+                            return
+                        token_data = app.storage.user.get(PENDING_DISCORD_TOKEN_KEY, {})
+                        await accounts_repo.create_account(
+                            account_type=AccountType.DISCORD_USER,
+                            time_zone=tz_selector.value,
+                            is_super_admin=True,
+                            **discord_account_fields(discord_user, token_data),
+                        )
+                        app.storage.user.pop(PENDING_DISCORD_USER_KEY, None)
+                        app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
+                        ui.notify("SuperAdmin account created!", type="positive")
+                        ui.navigate.to("/setup")
 
-                ui.button("Continue with Discord", icon="link", on_click=start_setup_login) \
-                    .props("unelevated color=indigo-8")
+                    ui.button("Create SuperAdmin Account", on_click=submit).props("unelevated color=primary")
+                else:
+                    ui.label("Create the initial SuperAdmin account via Discord.")
+
+                    def start_setup_login() -> None:
+                        state = discord_oauth.generate_state()
+                        app.storage.user[STATE_KEY] = state
+                        app.storage.user[SETUP_MODE_KEY] = True
+                        ui.navigate.to(discord_oauth.build_authorize_url(state))
+
+                    ui.button("Continue with Discord", icon="link", on_click=start_setup_login) \
+                        .props("unelevated color=indigo-8")
+
                 with ui.stepper_navigation():
                     ui.button("Back", on_click=stepper.previous).props("flat")
 
@@ -90,41 +127,3 @@ async def setup_page() -> None:
                     ui.button("Back", on_click=stepper.previous).props("flat")
                     ui.button("Go to Dashboard", on_click=lambda: ui.navigate.to("/dashboard")) \
                         .props("unelevated color=primary")
-
-
-@ui.page("/setup/admin-account")
-async def setup_admin_account_page() -> None:
-    """Discord OAuth lands here (instead of /register/complete) when the login
-    was started from the setup wizard - see auth.discord_callback()."""
-    ui.page_title("Setup - Admin Account")
-    discord_user = app.storage.user.get(PENDING_DISCORD_USER_KEY)
-
-    with ui.column().classes("w-full max-w-md mx-auto gap-4 p-12"):
-        if not discord_user:
-            ui.label("No pending Discord login found.").classes("text-negative")
-            ui.button("Back to Setup", on_click=lambda: ui.navigate.to("/setup"))
-            return
-
-        ui.label(f"Welcome, {discord_user.get('username')}!").classes("text-2xl font-bold")
-        ui.label("This account will be the site's SuperAdmin.")
-
-        zones = await time_zones_repo.list_time_zones()
-        tz_selector = TimeZoneSelector(zones)
-
-        async def submit() -> None:
-            if not tz_selector.value:
-                ui.notify("Please select a region and location", type="warning")
-                return
-            token_data = app.storage.user.get(PENDING_DISCORD_TOKEN_KEY, {})
-            await accounts_repo.create_account(
-                account_type=AccountType.DISCORD_USER,
-                time_zone=tz_selector.value,
-                is_super_admin=True,
-                **discord_account_fields(discord_user, token_data),
-            )
-            app.storage.user.pop(PENDING_DISCORD_USER_KEY, None)
-            app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
-            ui.notify("SuperAdmin account created!", type="positive")
-            ui.navigate.to("/setup")
-
-        ui.button("Create SuperAdmin Account", on_click=submit).props("unelevated color=primary")

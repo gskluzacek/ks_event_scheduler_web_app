@@ -16,17 +16,28 @@ def _list() -> list[TimeZone]:
         return list(session.exec(select(TimeZone).order_by(TimeZone.region, TimeZone.location)))
 
 
-def _bulk_insert(rows: list[dict[str, str]]) -> None:
+def _bulk_insert(rows: list[dict[str, str]]) -> int:
     with get_session() as session:
-        session.add_all(TimeZone(region=row["region"], location=row["location"]) for row in rows)
+        existing = {(z.region, z.location) for z in session.exec(select(TimeZone))}
+        unique_rows = {(r["region"], r["location"]): r for r in rows}
+        new_zones = [
+            TimeZone(region=region, location=location)
+            for region, location in unique_rows
+            if (region, location) not in existing
+        ]
+        session.add_all(new_zones)
         session.commit()
+        return len(new_zones)
 
 
 async def list_time_zones() -> list[TimeZone]:
     return await run.io_bound(_list)
 
 
-async def bulk_create_time_zones(rows: list[dict[str, str]]) -> None:
+async def bulk_create_time_zones(rows: list[dict[str, str]]) -> int:
     """Inserts one row per dict, each needing a "region" and "location" key -
-    the shape the setup wizard's CSV upload produces."""
-    await run.io_bound(_bulk_insert, rows)
+    the shape the setup wizard's CSV upload produces. Skips any pair already
+    in the table (or repeated within this same batch) rather than erroring
+    on the region+location unique constraint; returns how many were actually
+    inserted."""
+    return await run.io_bound(_bulk_insert, rows)
