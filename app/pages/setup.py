@@ -37,15 +37,28 @@ from app.pages.auth import (
 
 
 @ui.page("/setup")
-async def setup_page(error: str = "") -> None:
+async def setup_page(error: str = "", authorized: str = "") -> None:
     ui.page_title("Setup - Kingshot Scheduler")
 
     zones = await time_zones_repo.list_time_zones()
     account_exists = await accounts_repo.has_any_account()
     initial_step = "Kingdoms & Alliances" if account_exists else "Admin Account" if zones else "Time Zones"
-    # Discord's own redirect back here (success or Cancel) is what lands us on this
-    # page in setup mode with a possibly-pending identity - see auth.discord_callback().
-    discord_user = app.storage.user.get(PENDING_DISCORD_USER_KEY)
+
+    # A pending Discord identity is only trustworthy immediately after the OAuth
+    # round trip that set it - discord_callback() marks that redirect with
+    # ?authorized=1. Any other request to this page (a plain reload, reopening
+    # the tab later, restarting the app - all common when wiping the DB during
+    # testing) must NOT resurrect a stale identity left over from some earlier,
+    # unrelated login: app.storage.user is a persistent per-browser cookie, so
+    # it survives a deleted database file just fine. Going Back/Next between
+    # steps is a client-side-only stepper change, not a new request, so this
+    # never fires mid-wizard - only on an actual fresh page load.
+    if authorized:
+        discord_user = app.storage.user.get(PENDING_DISCORD_USER_KEY)
+    else:
+        discord_user = None
+        app.storage.user.pop(PENDING_DISCORD_USER_KEY, None)
+        app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
 
     with ui.column().classes("w-full max-w-lg mx-auto gap-4 p-12"):
         ui.label("Kingshot Scheduler Setup").classes("text-2xl font-bold")

@@ -117,13 +117,23 @@ def register_fastapi_routes() -> None:
             return RedirectResponse("/setup")
         app.storage.user[PENDING_DISCORD_USER_KEY] = discord_user
         app.storage.user[PENDING_DISCORD_TOKEN_KEY] = token_data
-        return RedirectResponse("/setup" if setup_mode else "/register/complete")
+        return RedirectResponse("/setup?authorized=1" if setup_mode else "/register/complete?authorized=1")
 
 
 @ui.page("/register/complete")
-def register_complete_page() -> None:
+def register_complete_page(authorized: str = "") -> None:
     ui.page_title("Complete Registration - Kingshot Scheduler")
-    discord_user = app.storage.user.get(PENDING_DISCORD_USER_KEY)
+
+    # Same staleness concern as setup.setup_page(): app.storage.user is a
+    # persistent per-browser cookie, so without this check a plain reload or
+    # much later reopening of this URL could resurrect a long-dead pending
+    # Discord login instead of correctly saying "no pending login found".
+    if authorized:
+        discord_user = app.storage.user.get(PENDING_DISCORD_USER_KEY)
+    else:
+        discord_user = None
+        app.storage.user.pop(PENDING_DISCORD_USER_KEY, None)
+        app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
 
     with ui.column().classes("w-full max-w-md mx-auto gap-4 p-12"):
         if not discord_user:
