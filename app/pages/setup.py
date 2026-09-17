@@ -94,7 +94,15 @@ async def setup_page(error: str = "", authorized: str = "") -> None:
                     ui.button("Next", on_click=stepper.next)
 
             with ui.step("Admin Account"):
-                if discord_user:
+                if account_exists:
+                    # Reached via Back from step 3 after setup already completed (in this
+                    # same page load or an earlier one) - discord_user is always None here
+                    # (nothing pending survives once an account exists), so there's nothing
+                    # left to do. Showing "Continue with Discord" in this state would look
+                    # live but do nothing useful if clicked - see start_setup_login()'s
+                    # guard below for what actually happens if it somehow still is clicked.
+                    ui.label("The SuperAdmin account has already been created.").classes("font-bold")
+                elif discord_user:
                     # Back from Discord (success) - collect the account's time zone right
                     # here, still inside the wizard, rather than sending the user to yet
                     # another page. "Back" from step 3 lands right back on this same form,
