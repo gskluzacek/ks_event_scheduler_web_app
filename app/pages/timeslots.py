@@ -5,7 +5,8 @@ from datetime import datetime
 from nicegui import ui
 
 from app.components import layout, role_switcher
-from app.models.sample_data import accounts, alliances, events, kingdoms, players, time_slots
+from app.data import accounts as accounts_repo
+from app.models.sample_data import alliances, events, kingdoms, players, time_slots
 from app.models.schema import Player, Role, TimeSlot, TimeSlotType, next_id
 from app.pages.account_player import _format_dt, _render_field, _resolve_account_name, _set_enabled
 from app.utils.filters import get_id_filter, get_sort_state, get_text_filter, set_filter, set_sort_state
@@ -162,12 +163,12 @@ async def timeslots_page() -> None:
     ui.page_title("Time Slots - Kingshot Scheduler")
     async with layout.frame("/timeslots"):
         ui.label("Time Slot Management").classes("text-2xl font-bold")
-        slot_filters()
-        slot_table()
+        await slot_filters()
+        await slot_table()
 
 
 @ui.refreshable
-def slot_filters() -> None:
+async def slot_filters() -> None:
     show_kingdom_alliance = _show_kingdom_alliance_filter()
     show_account = _show_account_filter()
 
@@ -216,7 +217,10 @@ def slot_filters() -> None:
             ).props("outlined dense clearable").classes("w-40")
 
         if show_account:
-            account_options = {acc.id: acc.account_name for acc in accounts if acc.id in account_option_ids}
+            visible_accounts = await accounts_repo.list_accounts()
+            account_options = {
+                acc.account_id: acc.account_name for acc in visible_accounts if acc.account_id in account_option_ids
+            }
             account_select = ui.select(
                 account_options, label="Account", value=account_id,
             ).props("outlined dense clearable").classes("w-40")
@@ -349,9 +353,9 @@ def _clear_slot_filters() -> None:
 
 
 @ui.refreshable
-def slot_table() -> None:
+async def slot_table() -> None:
     filtered = _filtered_slots()
-    account_by_id = {a.id: a for a in accounts}
+    account_by_id = {a.account_id: a for a in await accounts_repo.list_accounts()}
     rows = []
     for s in filtered:
         player = next((p for p in players if p.id == s.player_id), None)
@@ -428,19 +432,19 @@ def slot_table() -> None:
 
     table.on_select(on_select)
 
-    def handle_view() -> None:
+    async def handle_view() -> None:
         if len(table.selected) != 1:
             return
         slot = slot_by_id.get(table.selected[0]["id"])
         if slot:
-            _open_view_slot_dialog(slot)
+            await _open_view_slot_dialog(slot)
 
-    def handle_edit() -> None:
+    async def handle_edit() -> None:
         if len(table.selected) != 1:
             return
         slot = slot_by_id.get(table.selected[0]["id"])
         if slot:
-            _open_edit_slot_dialog(slot)
+            await _open_edit_slot_dialog(slot)
 
     view_button.on_click(handle_view)
     edit_button.on_click(handle_edit)
@@ -452,14 +456,14 @@ def slot_table() -> None:
         ui.label(visibility_message).classes("text-xs text-grey-5")
 
 
-def _render_slot_details(slot: TimeSlot) -> None:
+async def _render_slot_details(slot: TimeSlot) -> None:
     """Read-only detail view - every TimeSlot column. Shared verbatim between
     the View dialog and part 1 of the Edit dialog, mirroring
     players._render_player_details().
     """
     player = next((p for p in players if p.id == slot.player_id), None)
     event = next((e for e in events if e.id == slot.event_id), None)
-    account = next((a for a in accounts if a.id == player.account_id), None) if player else None
+    account = await accounts_repo.get_account(player.account_id) if player else None
     alliance = next((a for a in alliances if a.id == player.alliance_id), None) if player else None
 
     with ui.row().classes("items-center gap-3 w-full"):
@@ -480,16 +484,18 @@ def _render_slot_details(slot: TimeSlot) -> None:
         ui.separator().classes("my-3")
         ui.label("Audit").classes("text-xs font-bold text-grey-6 uppercase")
         owner_time_zone = account.time_zone if account else "UTC"
-        _render_field("Created By", _resolve_account_name(slot.create_account_id, account) if account else "—")
+        created_by = await _resolve_account_name(slot.create_account_id, account) if account else "—"
+        _render_field("Created By", created_by)
         _render_field("Created At", _format_dt(slot.created_at, owner_time_zone))
-        _render_field("Updated By", _resolve_account_name(slot.update_account_id, account) if account else "—")
+        updated_by = await _resolve_account_name(slot.update_account_id, account) if account else "—"
+        _render_field("Updated By", updated_by)
         _render_field("Updated At", _format_dt(slot.updated_at, owner_time_zone))
 
 
-def _open_view_slot_dialog(slot: TimeSlot) -> None:
+async def _open_view_slot_dialog(slot: TimeSlot) -> None:
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-md"):
         ui.label("Time Slot Details").classes("text-lg font-bold")
-        _render_slot_details(slot)
+        await _render_slot_details(slot)
 
         with ui.row().classes("w-full justify-end"):
             ui.button("Close", on_click=dialog.close).props("flat")
@@ -497,7 +503,7 @@ def _open_view_slot_dialog(slot: TimeSlot) -> None:
     dialog.open()
 
 
-def _open_edit_slot_dialog(slot: TimeSlot) -> None:
+async def _open_edit_slot_dialog(slot: TimeSlot) -> None:
     """Editable fields per requirements: local_start, local_end, time_slot_type,
     needs_review. Everything else is read-only (part 1, shared with the View
     dialog). Start/end use the same hour+minute dropdown pattern as the Add
@@ -508,10 +514,10 @@ def _open_edit_slot_dialog(slot: TimeSlot) -> None:
         ui.label("Edit Time Slot").classes("text-lg font-bold")
 
         @ui.refreshable
-        def details_view() -> None:
-            _render_slot_details(slot)
+        async def details_view() -> None:
+            await _render_slot_details(slot)
 
-        details_view()
+        await details_view()
 
         ui.separator().classes("my-3")
         ui.label("Update").classes("text-xs font-bold text-grey-6 uppercase")

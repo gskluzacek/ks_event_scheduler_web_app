@@ -3,7 +3,8 @@ from __future__ import annotations
 from nicegui import ui
 
 from app.components import layout, role_switcher
-from app.models.sample_data import accounts, alliances, players, time_slots
+from app.data import accounts as accounts_repo
+from app.models.sample_data import alliances, players, time_slots
 from app.models.schema import Role
 
 
@@ -17,20 +18,21 @@ async def search_page() -> None:
         query = ui.input("Search accounts, players, or time slots…").props("outlined clearable").classes("w-full")
         results = ui.column().classes("w-full gap-4")
 
-        def run_search() -> None:
+        async def run_search() -> None:
             results.clear()
             term = (query.value or "").lower().strip()
             with results:
-                _render_accounts(term, elevated)
+                await _render_accounts(term, elevated)
                 _render_players(term, elevated)
                 _render_slots(term)
 
         query.on_value_change(run_search)
-        run_search()
+        await run_search()
 
 
-def _render_accounts(term: str, elevated: bool) -> None:
-    matches = [a for a in accounts if term in a.account_name.lower()] if term else accounts
+async def _render_accounts(term: str, elevated: bool) -> None:
+    all_accounts = await accounts_repo.list_accounts()
+    matches = [a for a in all_accounts if term in a.account_name.lower()] if term else all_accounts
     if not matches:
         return
     with ui.card().classes("w-full"):
@@ -38,7 +40,7 @@ def _render_accounts(term: str, elevated: bool) -> None:
         for a in matches:
             label = f"{a.account_name} — {a.time_zone}"
             if elevated:
-                label += f"  (id: {a.id})"
+                label += f"  (id: {a.account_id})"
             ui.label(label)
 
 
