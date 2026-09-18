@@ -223,7 +223,13 @@ async def _open_edit_account_dialog(account: Account, *, on_saved) -> None:
                 current["account"].account_id, update_account_id=role_switcher.current_account_id(), **fields,
             )
             dialog.close()
-            on_saved()
+            # dialog.close() alone already triggers the dialog.on_value_change catch-all
+            # below (it fires on every close reason, Save included) - calling on_saved()
+            # again here would refresh player_table a second time before the first
+            # refresh's `await accounts_repo.list_accounts()` has finished, and since
+            # player_table is a `@ui.refreshable async def` (patch 3), the two refreshes
+            # interleave instead of one completing before the next starts, leaving both
+            # calls' rendered rows in the container - the account appearing twice.
             ui.notify("Account updated", type="positive")
 
         with ui.row().classes("w-full justify-end gap-2"):

@@ -652,8 +652,16 @@ async def _open_edit_player_dialog(player: Player) -> None:
             player.update_account_id = role_switcher.current_account_id()
             player.updated_at = datetime.utcnow()
             dialog.close()
+            # dialog.close() alone already triggers the dialog.on_value_change catch-all
+            # below (it fires on every close reason, Save included), which refreshes
+            # player_table - calling player_table.refresh() again here would start a
+            # second, overlapping refresh before the first's `await _filtered_accounts()`
+            # finishes, and since player_table is a `@ui.refreshable async def` (patch 3),
+            # the two interleave instead of one completing before the next starts,
+            # leaving both calls' rendered rows in the container (duplicate cards).
+            # player_filters isn't touched by the catch-all, so it still needs its own
+            # explicit refresh here.
             player_filters.refresh()
-            player_table.refresh()
             ui.notify("Player updated", type="positive")
 
         with ui.row().classes("w-full justify-end gap-2"):

@@ -12,7 +12,7 @@ Flow (per web_app_requirements.md > Account Registration flow):
      login was started from (/register, or /setup if SETUP_MODE_KEY was set),
      with ?error=... so that page can show what went wrong.
   4. /register/complete asks for time zone (+ other account fields) and inserts
-     into the in-memory `accounts` list on submit
+     the real account row via app/data/accounts.py on submit
 
 NOTE: The callback is a plain FastAPI route (`@app.get`), not a `@ui.page` -
 NiceGUI mounts on top of FastAPI, so ordinary FastAPI routes work side by
@@ -31,12 +31,13 @@ from __future__ import annotations
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from nicegui import app, ui
+from sqlalchemy.exc import IntegrityError
 
 from app.auth import discord_oauth
 from app.components.timezone_select import TimeZoneSelector
 from app.data import accounts as accounts_repo
-from app.models.sample_data import accounts, time_zones
-from app.models.schema import Account, AccountType, next_id
+from app.data import time_zones as time_zones_repo
+from app.models.schema import AccountType
 
 STATE_KEY = "oauth_state"
 SETUP_MODE_KEY = "setup_mode"
@@ -121,7 +122,7 @@ def register_fastapi_routes() -> None:
 
 
 @ui.page("/register/complete")
-def register_complete_page(authorized: str = "") -> None:
+async def register_complete_page(authorized: str = "") -> None:
     ui.page_title("Complete Registration - Kingshot Scheduler")
 
     # Same staleness concern as setup.setup_page(): app.storage.user is a
@@ -144,20 +145,30 @@ def register_complete_page(authorized: str = "") -> None:
         ui.label(f"Welcome, {discord_user.get('username')}!").classes("text-2xl font-bold")
         ui.label("Just need a couple more details to finish setting up your account.")
 
-        tz_selector = TimeZoneSelector(time_zones)
+        zones = await time_zones_repo.list_time_zones()
+        tz_selector = TimeZoneSelector(zones)
 
-        def submit() -> None:
+        async def submit() -> None:
             if not tz_selector.value:
                 ui.notify("Please select a region and location", type="warning")
                 return
             token_data = app.storage.user.get(PENDING_DISCORD_TOKEN_KEY, {})
-            account = Account(
-                account_id=next_id(),
-                account_type=AccountType.DISCORD_USER,
-                time_zone=tz_selector.value,
-                **discord_account_fields(discord_user, token_data),
-            )
-            accounts.append(account)
+            try:
+                await accounts_repo.create_account(
+                    account_type=AccountType.DISCORD_USER,
+                    time_zone=tz_selector.value,
+                    **discord_account_fields(discord_user, token_data),
+                )
+            except IntegrityError:
+                # Same last-resort net as setup.py's admin-account submit() - the
+                # unique constraint on discord_user_id (schema.Account) is the real
+                # guard against a double-submit or two tabs racing through this
+                # same pending login both creating an account for it.
+                ui.notify("An account for this Discord user already exists.", type="warning")
+                app.storage.user.pop(PENDING_DISCORD_USER_KEY, None)
+                app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
+                ui.navigate.to("/register")
+                return
             del app.storage.user[PENDING_DISCORD_USER_KEY]
             app.storage.user.pop(PENDING_DISCORD_TOKEN_KEY, None)
             ui.notify("Account created!", type="positive")
