@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 
 from app.models.schema import (
-    Account, AccountType, Alliance, Event, Kingdom, Player, Role, TimeSlot,
+    Alliance, Event, Kingdom, Player, Role, TimeSlot,
     TimeSlotType, TimeZone, next_id,
 )
 
@@ -77,62 +77,20 @@ alliances: list[Alliance] = [
     ),
 ]
 
-accounts: list[Account] = [
-    Account(
-        account_id=next_id(),
-        account_type=AccountType.DISCORD_USER,
-        account_name="gskluzacek_test",
-        time_zone="America/Chicago",
-        discord_user_id="835177531904098380",
-        discord_username="gskluzacek_test",
-        discord_global_name="Greg_test",
-        discord_avatar_url="https://cdn.discordapp.com/avatars/835177531904098380/f20536006b176b257c71f9fb9c52dbf2.webp?size=2048",
-        is_super_admin=True,
-    ),
-    Account(
-        account_id=next_id(),
-        account_type=AccountType.DISCORD_USER,
-        account_name="marla_singer_2026_test",
-        time_zone="America/New_York",
-        discord_user_id="222222222222222222",
-        discord_username="marla_singer_2026_test",
-        discord_global_name="Marla Singer test",
-    ),
-    Account(
-        account_id=next_id(),
-        account_type=AccountType.DISCORD_USER,
-        account_name="tyler_durden_58_test",
-        time_zone="Europe/London",
-        discord_user_id="333333333333333333",
-        discord_username="tyler_durden_58_test",
-        discord_global_name="Tyler Durden test",
-    ),
-    Account(
-        account_id=next_id(),
-        account_type=AccountType.DISCORD_USER,
-        account_name="mr_roboto_1983",
-        time_zone="Asia/Tokyo",
-        discord_user_id="444444444444444444",
-        discord_username="mr_roboto_1983",
-        discord_global_name="Kilroy",
-    ),
-]
-
-# Example manual-user account, created by an admin (Greg) for a player without Discord.
-accounts.append(
-    Account(
-        account_id=next_id(),
-        account_type=AccountType.MANUAL_USER,
-        account_name="max_manual_planck",
-        time_zone="Europe/Berlin",
-        create_account_id=accounts[0].id
-    )
-)
+# Account is a real SQLite table now (app/models/schema.py, app/data/accounts.py) -
+# the players below reference it by the fixed account_id values (1001-1005)
+# that scripts/seed_preview_accounts.py seeds it with, since the in-memory
+# accounts list this file used to define no longer exists.
+_ACCOUNT_ID_GSKLUZACEK = 1001
+_ACCOUNT_ID_MARLA_SINGER = 1002
+_ACCOUNT_ID_TYLER_DURDEN = 1003
+_ACCOUNT_ID_MR_ROBOTO = 1004
+_ACCOUNT_ID_MAX_PLANCK = 1005
 
 players: list[Player] = [
     Player(
         id=next_id(),                   # index 0
-        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[0].id,    # alliance: [SHD] Shadow Stooges
         kingshot_id="229989369",
         kingshot_name="Dark Chocolate",
@@ -144,7 +102,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 1
-        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[0].id,    # alliance: [SHD] Shadow Stooges
         kingshot_id="229989370",
         kingshot_name="Milk Chocolate",
@@ -155,7 +113,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 2
-        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
         kingshot_id="229989371",
         kingshot_name="Mint Chocolate",
@@ -166,7 +124,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 3
-        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
         kingshot_id="229989372",
         kingshot_name="White Chocolate",
@@ -177,7 +135,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 4
-        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
         kingshot_id="229989373",
         kingshot_name="Unsweetened Chocolate",
@@ -188,7 +146,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 5
-        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
         kingshot_id="229989374",
         kingshot_name="German Chocolate",
@@ -199,7 +157,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 6
-        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
         kingshot_id="229989375",
         kingshot_name="Mexican Chocolate",
@@ -210,7 +168,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 7
-        account_id=accounts[0].id,      # account: discord_user: gskluzacek
+        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
         kingshot_id="229989376",
         kingshot_name="Hazelnut Chocolate",
@@ -223,7 +181,7 @@ players: list[Player] = [
 
     Player(
         id=next_id(),                   # index 8
-        account_id=accounts[1].id,      # account: discord_user: marla_singer_2026
+        account_id=_ACCOUNT_ID_MARLA_SINGER,  # account: discord_user: marla_singer_2026
         alliance_id=alliances[3].id,    # alliance: [UMP] Umbra Pickles
         kingshot_id="999666333",
         kingshot_name="Mouthy Marla",
@@ -234,7 +192,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 9
-        account_id=accounts[2].id,      # account: discord_user: tyler_durden_58
+        account_id=_ACCOUNT_ID_TYLER_DURDEN,  # account: discord_user: tyler_durden_58
         alliance_id=alliances[3].id,    # alliance: [UMP] Umbra Pickles
         kingshot_id="222555888",
         kingshot_name="Jack's Angry Splean",
@@ -245,7 +203,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 10
-        account_id=accounts[3].id,      # account: discord_user: mr_roboto_1983
+        account_id=_ACCOUNT_ID_MR_ROBOTO,  # account: discord_user: mr_roboto_1983
         alliance_id=alliances[4].id,    # alliance: [sOS] Hospitable Canteen
         kingshot_id="111444777",
         kingshot_name="Desert Moon",
@@ -256,7 +214,7 @@ players: list[Player] = [
     ),
     Player(
         id=next_id(),                   # index 11
-        account_id=accounts[4].id,      # account: manual_user: max_manual_planck
+        account_id=_ACCOUNT_ID_MAX_PLANCK,  # account: manual_user: max_manual_planck
         alliance_id=alliances[4].id,    # alliance: [sOS] Hospitable Canteen
         kingshot_id="314159265",
         kingshot_name="Schrödinger’s Cat",

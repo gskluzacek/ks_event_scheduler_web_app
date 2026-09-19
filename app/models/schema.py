@@ -156,10 +156,6 @@ class Account(SQLModel, table=True):
     update_account_id: int | None = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    @property
-    def id(self) -> int | None:  # transitional alias - see module docstring
-        return self.account_id
-
 
 @dataclass
 class Player:
