@@ -25,7 +25,8 @@ from app.auth.discord_guild import MembershipResult, build_guild_avatar_url, ver
 from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
 from app.models.sample_data import alliances, kingdoms, players, time_slots
-from app.models.schema import Account, AccountType, Player, Role, TOWN_CENTER_LEVELS, next_id
+# NOTE: SamplePlayer is transitional - drop this alias when the page moves to app/data/players.py
+from app.models.schema import Account, AccountType, Role, SamplePlayer as Player, TOWN_CENTER_LEVELS, next_id
 from app.pages.account_player import (
     _admin_alliance_ids,
     _can_edit_account,

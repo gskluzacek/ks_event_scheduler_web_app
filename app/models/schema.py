@@ -3,8 +3,8 @@ Data model. Being migrated table-by-table from in-memory dataclasses to real
 SQLite tables (see web_app_requirements.md > Data Model Overview) - see
 app/db.py and app/data/ for the SQLModel/repository side of that migration.
 
-TimeZone and Account are real `SQLModel` tables now. Kingdom, Alliance,
-Player, TimeSlot and Event are still plain dataclasses in module-level lists
+TimeZone, Account, Player and PlayerRole are real `SQLModel` tables now.
+Kingdom, Alliance, TimeSlot and Event are still plain dataclasses in module-level lists
 (app/models/sample_data.py) until their turn comes; Module-level state is
 normally an anti-pattern in NiceGUI (shared across all users - see
 nicegui_llms.md Mental Model #2), but for this mock every "user" is really
@@ -157,8 +157,54 @@ class Account(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class Player(SQLModel, table=True):
+    """A Kingshot player belonging to one account and one alliance. Roles live in
+    the separate `player_role` table (PlayerRole below), not on this row - see
+    app/data/players.py's roles_by_player_id()/set_roles().
+
+    `alliance_id` is a plain int with no DB-level FK: Alliance is still an
+    in-memory dataclass (app/models/sample_data.py, ids pinned to literals).
+    Add `foreign_key="alliance.alliance_id"` when Alliance migrates.
+    """
+    __tablename__ = "player"
+
+    player_id: int | None = Field(default=None, primary_key=True)
+    account_id: int = Field(foreign_key="account.account_id", index=True)
+    alliance_id: int = Field(index=True)
+    kingshot_id: str
+    kingshot_name: str
+    discord_nickname: str | None = None
+    power: int
+    town_center_level: str  # one of TOWN_CENTER_LEVELS
+    discord_guild_avatar_url: str | None = None  # guild-specific avatar override; None means "use the account's global avatar instead"
+    create_account_id: int | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    update_account_id: int | None = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class PlayerRole(SQLModel, table=True):
+    """One row per (player, role). SuperAdmin is account-level (Account.is_super_admin),
+    so it's deliberately excluded here - same reasoning as the CHECK below."""
+    __tablename__ = "player_role"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN (" + ", ".join(f"'{r.value}'" for r in Role if r is not Role.SUPER_ADMIN) + ")",
+            name="ck_player_role_role",
+        ),
+    )
+
+    player_id: int = Field(foreign_key="player.player_id", primary_key=True)
+    role: Role = Field(
+        primary_key=True,
+        sa_type=SAEnum(Role, values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+    )
+
+
+# Transitional: the pre-migration in-memory Player, still backing sample_data.players
+# for pages that haven't moved to the `player` table yet. Deleted with the last of them.
 @dataclass
-class Player:
+class SamplePlayer:
     id: int
     account_id: int
     alliance_id: int

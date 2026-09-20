@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 
 from app.models.schema import (
-    Alliance, Event, Kingdom, Player, Role, TimeSlot,
+    Alliance, Event, Kingdom, Role, SamplePlayer, TimeSlot,
     TimeSlotType, TimeZone, next_id,
 )
 
@@ -30,46 +30,49 @@ kingdoms: list[Kingdom] = [
     Kingdom(next_id(), "#1467"),
 ]
 
+# Alliance ids are pinned literals (2001-2006), not next_id(): the `player` table's
+# alliance_id has no DB FK yet, so scripts/preview_players.yaml refers to them by
+# these fixed values. Same trick as account_id 1001-1005 above.
 # Real guild - Greg's corn-bot-1 is already a member, so this alliance can exercise the
 # actual bot-token guild-membership check end to end (see auth/discord_guild.py).
 alliances: list[Alliance] = [
     Alliance(
-        id=next_id(),           # index 0
+        id=2001,            # index 0
         name="[SHD] Shadow Stooges",
         kingdom_id=kingdoms[0].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Dark Lords of the Shadow Realm"
     ),
     Alliance(
-        id=next_id(),           # index 1
+        id=2002,            # index 1
         name="[PHX] Dark Phoenix Rising",
         kingdom_id=kingdoms[0].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Mister Mojo Risin'"
     ),
     Alliance(
-        id=next_id(),           # index 2
+        id=2003,            # index 2
         name="[UFC] Ultimate Fighting Clan",
         kingdom_id=kingdoms[1].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Drink Clamoto Juice and Live!"
     ),
     Alliance(
-        id=next_id(),           # index 3
+        id=2004,            # index 3
         name="[UMP] Umbra Pickles",
         kingdom_id=kingdoms[1].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="NOT Magic: The Gathering"
     ),
     Alliance(
-        id=next_id(),           # index 4
+        id=2005,            # index 4
         name="[sOS] Hospitable Canteen",
         kingdom_id=kingdoms[1].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Same Old Shit"
     ),
     Alliance(
-        id=next_id(),           # index 5
+        id=2006,            # index 5
         name="[STN] Silent Thunder and Nonsense",
         kingdom_id=kingdoms[1].id,
         discord_guild_id="1517613215138189444",
@@ -87,9 +90,9 @@ _ACCOUNT_ID_TYLER_DURDEN = 1003
 _ACCOUNT_ID_MR_ROBOTO = 1004
 _ACCOUNT_ID_MAX_PLANCK = 1005
 
-players: list[Player] = [
-    Player(
-        id=next_id(),                   # index 0
+players: list[SamplePlayer] = [
+    SamplePlayer(
+        id=3001,                    # index 0
         account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[0].id,    # alliance: [SHD] Shadow Stooges
         kingshot_id="229989369",
@@ -100,8 +103,8 @@ players: list[Player] = [
         roles=[Role.POWER_ADMIN],
         discord_guild_avatar_url="https://cdn.discordapp.com/guilds/1517613215138189444/users/835177531904098380/avatars/d5cc62b7313b1f2ea7092bdd9c306653.webp?size=2048",
     ),
-    Player(
-        id=next_id(),                   # index 1
+    SamplePlayer(
+        id=3002,                    # index 1
         account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[0].id,    # alliance: [SHD] Shadow Stooges
         kingshot_id="229989370",
@@ -111,8 +114,8 @@ players: list[Player] = [
         town_center_level="21",
         roles=[Role.USER],
     ),
-    Player(
-        id=next_id(),                   # index 2
+    SamplePlayer(
+        id=3003,                    # index 2
         account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
         kingshot_id="229989371",
@@ -122,8 +125,8 @@ players: list[Player] = [
         town_center_level="22",
         roles=[Role.USER],
     ),
-    Player(
-        id=next_id(),                   # index 3
+    SamplePlayer(
+        id=3004,                    # index 3
         account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
         kingshot_id="229989372",
@@ -133,8 +136,8 @@ players: list[Player] = [
         town_center_level="23",
         roles=[Role.USER],
     ),
-    Player(
-        id=next_id(),                   # index 4
+    SamplePlayer(
+        id=3005,                    # index 4
         account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
         kingshot_id="229989373",
@@ -144,8 +147,8 @@ players: list[Player] = [
         town_center_level="24",
         roles=[Role.USER],
     ),
-    Player(
-        id=next_id(),                   # index 5
+    SamplePlayer(
+        id=3006,                    # index 5
         account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
         kingshot_id="229989374",
@@ -155,8 +158,8 @@ players: list[Player] = [
         town_center_level="25",
         roles=[Role.USER],
     ),
-    Player(
-        id=next_id(),                   # index 6
+    SamplePlayer(
+        id=3007,                    # index 6
         account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
         kingshot_id="229989375",
@@ -166,8 +169,8 @@ players: list[Player] = [
         town_center_level="26",
         roles=[Role.USER],
     ),
-    Player(
-        id=next_id(),                   # index 7
+    SamplePlayer(
+        id=3008,                    # index 7
         account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
         alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
         kingshot_id="229989376",
@@ -179,8 +182,8 @@ players: list[Player] = [
     ),
 
 
-    Player(
-        id=next_id(),                   # index 8
+    SamplePlayer(
+        id=3009,                    # index 8
         account_id=_ACCOUNT_ID_MARLA_SINGER,  # account: discord_user: marla_singer_2026
         alliance_id=alliances[3].id,    # alliance: [UMP] Umbra Pickles
         kingshot_id="999666333",
@@ -190,8 +193,8 @@ players: list[Player] = [
         town_center_level="19",
         roles=[Role.ADMIN],
     ),
-    Player(
-        id=next_id(),                   # index 9
+    SamplePlayer(
+        id=3010,                    # index 9
         account_id=_ACCOUNT_ID_TYLER_DURDEN,  # account: discord_user: tyler_durden_58
         alliance_id=alliances[3].id,    # alliance: [UMP] Umbra Pickles
         kingshot_id="222555888",
@@ -201,8 +204,8 @@ players: list[Player] = [
         town_center_level="22",
         roles=[Role.SCHEDULER_ADMIN],
     ),
-    Player(
-        id=next_id(),                   # index 10
+    SamplePlayer(
+        id=3011,                    # index 10
         account_id=_ACCOUNT_ID_MR_ROBOTO,  # account: discord_user: mr_roboto_1983
         alliance_id=alliances[4].id,    # alliance: [sOS] Hospitable Canteen
         kingshot_id="111444777",
@@ -212,8 +215,8 @@ players: list[Player] = [
         town_center_level="20",
         roles=[Role.USER],
     ),
-    Player(
-        id=next_id(),                   # index 11
+    SamplePlayer(
+        id=3012,                    # index 11
         account_id=_ACCOUNT_ID_MAX_PLANCK,  # account: manual_user: max_manual_planck
         alliance_id=alliances[4].id,    # alliance: [sOS] Hospitable Canteen
         kingshot_id="314159265",

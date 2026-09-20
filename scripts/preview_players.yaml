@@ -1,0 +1,125 @@
+# Preview players inserted by scripts/seed_preview_players.py (run AFTER seed_preview_accounts).
+#
+# Fixed player_id values (3001-3012) and alliance_id values (2001-2006, the pinned
+# ids in app/models/sample_data.py) so still-not-migrated time slots can reference
+# players by a stable id. alliance_id has no DB FK until Alliance migrates.
+
+- player_id: 3001
+  account_id: 1001
+  alliance_id: 2001  # [SHD] Shadow Stooges
+  kingshot_id: "229989369"
+  kingshot_name: "Dark Chocolate"
+  discord_nickname: "The Dark 'Chocolate' Knight"
+  power: 131200000
+  town_center_level: "30"
+  discord_guild_avatar_url: "https://cdn.discordapp.com/guilds/1517613215138189444/users/835177531904098380/avatars/d5cc62b7313b1f2ea7092bdd9c306653.webp?size=2048"
+  roles: [PowerAdmin]
+
+- player_id: 3002
+  account_id: 1001
+  alliance_id: 2001  # [SHD] Shadow Stooges
+  kingshot_id: "229989370"
+  kingshot_name: "Milk Chocolate"
+  discord_nickname: "Count Chocula"
+  power: 131200001
+  town_center_level: "21"
+  roles: [User]
+
+- player_id: 3003
+  account_id: 1001
+  alliance_id: 2002  # [PHX] Dark Phoenix Rising
+  kingshot_id: "229989371"
+  kingshot_name: "Mint Chocolate"
+  discord_nickname: "Luck O' The Irish"
+  power: 131200002
+  town_center_level: "22"
+  roles: [User]
+
+- player_id: 3004
+  account_id: 1001
+  alliance_id: 2002  # [PHX] Dark Phoenix Rising
+  kingshot_id: "229989372"
+  kingshot_name: "White Chocolate"
+  discord_nickname: "I'm not a bigot, honestly"
+  power: 131200003
+  town_center_level: "23"
+  roles: [User]
+
+- player_id: 3005
+  account_id: 1001
+  alliance_id: 2002  # [PHX] Dark Phoenix Rising
+  kingshot_id: "229989373"
+  kingshot_name: "Unsweetened Chocolate"
+  discord_nickname: "Just a bitter Old Man"
+  power: 131200004
+  town_center_level: "24"
+  roles: [User]
+
+- player_id: 3006
+  account_id: 1001
+  alliance_id: 2003  # [UFC] Ultimate Fighting Clan
+  kingshot_id: "229989374"
+  kingshot_name: "German Chocolate"
+  discord_nickname: "Not from Germany"
+  power: 131200005
+  town_center_level: "25"
+  roles: [User]
+
+- player_id: 3007
+  account_id: 1001
+  alliance_id: 2003  # [UFC] Ultimate Fighting Clan
+  kingshot_id: "229989375"
+  kingshot_name: "Mexican Chocolate"
+  discord_nickname: "Ima SOOO Spicy ¡Olé!"
+  power: 131200006
+  town_center_level: "26"
+  roles: [User]
+
+- player_id: 3008
+  account_id: 1001
+  alliance_id: 2003  # [UFC] Ultimate Fighting Clan
+  kingshot_id: "229989376"
+  kingshot_name: "Hazelnut Chocolate"
+  discord_nickname: "Better than Nutella"
+  power: 131200007
+  town_center_level: "27"
+  roles: [User]
+
+- player_id: 3009
+  account_id: 1002
+  alliance_id: 2004  # [UMP] Umbra Pickles
+  kingshot_id: "999666333"
+  kingshot_name: "Mouthy Marla"
+  discord_nickname: "Bride of Tyler Durden"
+  power: 61250
+  town_center_level: "19"
+  roles: [Admin]
+
+- player_id: 3010
+  account_id: 1003
+  alliance_id: 2004  # [UMP] Umbra Pickles
+  kingshot_id: "222555888"
+  kingshot_name: "Jack's Angry Splean"
+  discord_nickname: "Tyler Durden"
+  power: 45300
+  town_center_level: "22"
+  roles: [SchedulerAdmin]
+
+- player_id: 3011
+  account_id: 1004
+  alliance_id: 2005  # [sOS] Hospitable Canteen
+  kingshot_id: "111444777"
+  kingshot_name: "Desert Moon"
+  discord_nickname: "Dennis DeYoung Poser"
+  power: 39900
+  town_center_level: "20"
+  roles: [User]
+
+- player_id: 3012
+  account_id: 1005
+  alliance_id: 2005  # [sOS] Hospitable Canteen
+  kingshot_id: "314159265"
+  kingshot_name: "Schrödinger’s Cat"
+  power: 39900
+  town_center_level: "20"
+  roles: [User]

@@ -7,7 +7,8 @@ from nicegui import ui
 from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
 from app.models.sample_data import alliances, events, kingdoms, players, time_slots
-from app.models.schema import Player, Role, TimeSlot, TimeSlotType, next_id
+# NOTE: SamplePlayer is transitional - drop this alias when the page moves to app/data/players.py
+from app.models.schema import Role, SamplePlayer as Player, TimeSlot, TimeSlotType, next_id
 from app.pages.account_player import _format_dt, _render_field, _resolve_account_name, _set_enabled
 from app.utils.filters import get_id_filter, get_sort_state, get_text_filter, set_filter, set_sort_state
 
