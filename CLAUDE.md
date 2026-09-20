@@ -127,6 +127,64 @@ time-zone CSV (`assets/timezone_regions_locations.csv`), (2) create the SuperAdm
 landing back in the wizard, (3) kingdoms/alliances (stub). Pending Discord identity is only trusted right after the OAuth
 redirect (`?authorized=1`).
 
+## UI and permission decisions (from the desktop-app chats, Aug-Sep 2026)
+Greg's stated intent as of 2026-09-20. The code is the source of truth where they differ.
+
+**These decisions are under review.** Greg is reconsidering them while drafting `documentation/screen_role_acctions.xlsx`,
+which will define, per role and per screen, what may be viewed and what actions are allowed on each displayed entity. He also
+plans to revamp the filters. That matrix will supersede the role/visibility, filter and page-layout rules below. It is
+deliberately on hold until the SQLite backend migration is finished, so **finish the migration first and don't redesign
+permissions or filters in the meantime**; migrate pages with their current behavior.
+
+**Who sees/does what**
+- PowerAdmin = Admin + the ability to assign roles. Neither gets extra visibility on the Time Slots page (same as a User).
+- Accounts & Players page: User and SchedulerAdmin see only their own account and its players. Admin/PowerAdmin see all
+  accounts, can view but not edit them, can add players only for alliances they belong to, and see only players in those
+  alliances. SuperAdmin sees all, edits accounts, and can add players for any alliance.
+- Time Slots page: User/Admin/PowerAdmin see only their own account's players' slots. SchedulerAdmin sees slots for players in
+  the alliances their account's players belong to. SuperAdmin sees everything. Filter order: Kingdom, Alliance (SuperAdmin
+  only), Account (SchedulerAdmin and SuperAdmin), Player, Event, Needs Review.
+- Roles editing: SuperAdmin can set `is_super_admin` on other accounts (not their own). SuperAdmin or PowerAdmin can edit a
+  player's roles, but a PowerAdmin cannot edit their own roles. Valid role sets: none; Admin; PowerAdmin; SchedulerAdmin;
+  Admin+SchedulerAdmin; PowerAdmin+SchedulerAdmin (never Admin+PowerAdmin). Use one consistent control for role selection,
+  validate on save rather than dynamically disabling options.
+- Accounts have no alliance of their own; alliance comes from their players, so an account with players in two alliances is
+  visible/editable per each alliance's admins by design.
+
+**Page layouts**
+- Accounts & Players is one page (the standalone Accounts page was merged in on 2026-09-13). It is accounts-first: one card
+  per account with View/Edit (and Add Player for admins), expandable child cards for players, several open at once.
+  Records-per-page control (5/10/20/50, persisted in `app.storage.user`) instead of scroll-all, because NiceGUI renders real
+  DOM nodes per card. Zero-player accounts show a disabled expander with a tooltip; an empty page shows "No data available".
+  Filter order: Kingdom, Alliance, Account (admins only), Kingshot name. Kingdom/Alliance filters exclude zero-player accounts.
+- Filters: dropdown options come only from the user's actual data and cascade from the cross-filtered result set, with fixed
+  widths so they don't jump; options stay stable while typing in a text search. Filter and sort state persists per browser in
+  `app.storage.user` (true per-tab isolation with `app.storage.tab` was deliberately deferred). After adding a player, refresh
+  the filter row as well as the list.
+- Time Slots is a `ui.table` with multi-select, and a toolbar strip holding Add/View/Edit (View/Edit enabled only when exactly
+  one row is selected; multi-select is there for future bulk actions such as delete). Hour dropdown 12am-11pm, minute dropdown
+  00/15/30/45, and both Add and Edit validate end > start (no overnight slots).
+- Site-wide: light blue-gray tint (`#dbe4ee`) on table headers; time stamps shown in the viewing user's time zone.
+
+**Dialog conventions**
+- View shows every field, with `create_account_id`/`update_account_id` resolved to account names (a NULL create id means
+  self-registered, so show the account's own name). Edit = the View content plus a separate editable section. Long Discord
+  avatar URLs are truncated with a copy icon and a tooltip of the full value.
+- Manual accounts: generic person icon, editable account name, no Discord refresh. Discord accounts: account name read-only,
+  "refresh from Discord" pulls new values into the open dialog (the dialog stays open and the user must click Save). Refresh is
+  rate limited to 10 per 4 hours, counted per acting account and per target account in `app.storage.user` (`utils/rate_limit.py`).
+  Player edit: Kingshot name, power and town-center level editable; Discord nickname/guild avatar only via "Sync from Discord".
+- Add Player: pick Kingdom, then Alliance (narrowed to that kingdom), then "Verify Guild Membership" (disabled until both are
+  chosen); "Add Player" stays disabled until verification succeeds. Manual accounts skip verification. Guild membership is checked
+  only here, not at registration.
+- Avatars: global avatar on `Account`, guild avatar on `Player`, built from Discord hashes as full CDN URLs with `?size=2048`
+  (CSS scales down). Display fallback: guild avatar, then global avatar, then generic icon. A todo proposes storing the pieces
+  and building URLs in the UI instead.
+- Town center level is a string: "1"-"30", then "TG1-1" through "TG5-5" (`TOWN_CENTER_LEVELS`).
+- Times: store naive local datetimes plus the account's IANA zone name (region + location, chosen with two cascading
+  dropdowns) and convert with `dateutil.tz.gettz`; never store UTC offsets.
+- Project layout is the `app/` package with `app.`-prefixed imports (chosen over a flat layout); Python 3.14.
+
 ## NiceGUI rules of thumb for this repo
 - Page handlers are `async`; anything hitting the DB goes through the `app/data` async wrappers.
 - Module-level state is shared across all users. It's tolerated only for the remaining mock data.
