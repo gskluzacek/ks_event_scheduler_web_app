@@ -19,7 +19,7 @@ from nicegui import ui
 
 from app.components import role_switcher
 from app.data import accounts as accounts_repo
-from app.models.sample_data import players
+from app.data import players as players_repo
 from app.models.schema import Account, Role
 
 
@@ -110,7 +110,7 @@ def _can_edit_account(account_id: int) -> bool:
     return account_id == role_switcher.current_account_id() or role_switcher.current_role() == Role.SUPER_ADMIN
 
 
-def _admin_alliance_ids() -> set[int]:
+async def _admin_alliance_ids() -> set[int]:
     """Alliance IDs the current viewer's own players belong to.
 
     Used to scope what an Admin/PowerAdmin can see and add across *every*
@@ -122,4 +122,5 @@ def _admin_alliance_ids() -> set[int]:
     alliance_id).
     """
     own_account_id = role_switcher.current_account_id()
-    return {p.alliance_id for p in players if p.account_id == own_account_id}
+    own_players = await players_repo.list_players(account_ids=[own_account_id])
+    return {p.alliance_id for p in own_players}

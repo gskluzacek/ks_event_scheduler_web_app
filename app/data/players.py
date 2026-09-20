@@ -3,8 +3,8 @@ Player repository (`player` + `player_role` tables). Same conventions as
 app/data/accounts.py: plain per-call SQLite queries, no in-memory mirror.
 
 Roles are not an attribute of `Player` - they live in `player_role` and are
-read/written through roles_by_player_id() / set_roles() below (or passed to
-create_player()).
+read via roles_by_player_id() below and written by passing `roles=` to
+create_player() / update_player().
 """
 from __future__ import annotations
 
@@ -43,13 +43,16 @@ def _insert(player: Player, roles: list[Role]) -> Player:
         return player
 
 
-def _update(player_id: int, fields: dict) -> Player:
+def _update(player_id: int, fields: dict, roles: list[Role] | None) -> Player:
     with get_session() as session:
         player = session.get(Player, player_id)
         if player is None:
             raise ValueError(f"No player with player_id={player_id}")
         for key, value in fields.items():
             setattr(player, key, value)
+        if roles is not None:
+            session.exec(delete(PlayerRole).where(PlayerRole.player_id == player_id))
+            session.add_all(PlayerRole(player_id=player_id, role=r) for r in set(roles))
         session.add(player)
         session.commit()
         session.refresh(player)
@@ -72,19 +75,6 @@ def _roles(player_ids: Collection[int] | None) -> dict[int, list[Role]]:
         for row in session.exec(query):
             result.setdefault(row.player_id, []).append(row.role)
     return {pid: sorted(roles, key=list(Role).index) for pid, roles in result.items()}
-
-
-def _set_roles(player_id: int, roles: list[Role], update_account_id: int | None) -> None:
-    with get_session() as session:
-        player = session.get(Player, player_id)
-        if player is None:
-            raise ValueError(f"No player with player_id={player_id}")
-        session.exec(delete(PlayerRole).where(PlayerRole.player_id == player_id))
-        session.add_all(PlayerRole(player_id=player_id, role=r) for r in set(roles))
-        player.update_account_id = update_account_id
-        player.updated_at = datetime.utcnow()
-        session.add(player)
-        session.commit()
 
 
 async def list_players(
@@ -133,10 +123,14 @@ async def create_player(
     return await run.io_bound(_insert, player, roles or [Role.USER])
 
 
-async def update_player(player_id: int, *, update_account_id: int | None, **fields) -> Player:
-    """Updates whichever columns are passed in `fields`, plus the audit columns."""
+async def update_player(
+    player_id: int, *, update_account_id: int | None, roles: list[Role] | None = None, **fields
+) -> Player:
+    """Updates whichever columns are passed in `fields`, plus the audit columns.
+    `roles`, when given (not None), replaces the player's whole role set in the
+    same transaction; None leaves roles untouched."""
     fields = {**fields, "update_account_id": update_account_id, "updated_at": datetime.utcnow()}
-    return await run.io_bound(_update, player_id, fields)
+    return await run.io_bound(_update, player_id, fields, roles)
 
 
 async def delete_player(player_id: int) -> None:
@@ -149,7 +143,3 @@ async def roles_by_player_id(player_ids: Collection[int] | None = None) -> dict[
     """One query for many players; players with no roles are simply absent from the dict."""
     return await run.io_bound(_roles, player_ids)
 
-
-async def set_roles(player_id: int, roles: list[Role], *, update_account_id: int | None) -> None:
-    """Replaces the player's whole role set."""
-    await run.io_bound(_set_roles, player_id, roles, update_account_id)
