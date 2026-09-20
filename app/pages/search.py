@@ -4,8 +4,9 @@ from nicegui import ui
 
 from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
-from app.models.sample_data import alliances, players, time_slots
-from app.models.schema import Role
+from app.data import players as players_repo
+from app.models.sample_data import alliances, time_slots
+from app.models.schema import Player, Role
 
 
 @ui.page("/search")
@@ -21,10 +22,11 @@ async def search_page() -> None:
         async def run_search() -> None:
             results.clear()
             term = (query.value or "").lower().strip()
+            all_players = await players_repo.list_players()
             with results:
                 await _render_accounts(term, elevated)
-                _render_players(term, elevated)
-                _render_slots(term)
+                _render_players(all_players, term, elevated)
+                _render_slots(all_players, term)
 
         query.on_value_change(run_search)
         await run_search()
@@ -44,9 +46,9 @@ async def _render_accounts(term: str, elevated: bool) -> None:
             ui.label(label)
 
 
-def _render_players(term: str, elevated: bool) -> None:
-    matches = [p for p in players if term in p.kingshot_name.lower() or term in p.kingshot_id.lower()] \
-        if term else players
+def _render_players(all_players: list[Player], term: str, elevated: bool) -> None:
+    matches = [p for p in all_players if term in p.kingshot_name.lower() or term in p.kingshot_id.lower()] \
+        if term else all_players
     if not matches:
         return
     with ui.card().classes("w-full"):
@@ -59,10 +61,10 @@ def _render_players(term: str, elevated: bool) -> None:
             ui.label(label)
 
 
-def _render_slots(term: str) -> None:
+def _render_slots(all_players: list[Player], term: str) -> None:
     if not term:
         return
-    matches = [s for p in players if term in p.kingshot_name.lower() for s in time_slots if s.player_id == p.id]
+    matches = [s for p in all_players if term in p.kingshot_name.lower() for s in time_slots if s.player_id == p.player_id]
     if not matches:
         return
     with ui.card().classes("w-full"):

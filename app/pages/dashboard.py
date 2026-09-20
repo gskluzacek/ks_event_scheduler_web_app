@@ -4,7 +4,8 @@ from nicegui import ui
 
 from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
-from app.models.sample_data import events, players, time_slots
+from app.data import players as players_repo
+from app.models.sample_data import events, time_slots
 
 
 @ui.page("/dashboard")
@@ -17,7 +18,7 @@ async def dashboard_page() -> None:
         account_count = len(await accounts_repo.list_accounts())
         with ui.row().classes("w-full gap-4"):
             _stat_card("Accounts", account_count, "badge")
-            _stat_card("Players", len(players), "groups")
+            _stat_card("Players", len(await players_repo.list_players()), "groups")
             _stat_card("Open Time Slots", len(time_slots), "schedule")
             _stat_card("Events", len(events), "event")
 
