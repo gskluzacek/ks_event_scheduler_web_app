@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 
 from app.models.schema import (
-    Alliance, Event, Kingdom, Role, SamplePlayer, TimeSlot,
+    Alliance, Event, Kingdom, TimeSlot,
     TimeSlotType, TimeZone, next_id,
 )
 
@@ -80,153 +80,17 @@ alliances: list[Alliance] = [
     ),
 ]
 
-# Account is a real SQLite table now (app/models/schema.py, app/data/accounts.py) -
-# the players below reference it by the fixed account_id values (1001-1005)
-# that scripts/seed_preview_accounts.py seeds it with, since the in-memory
-# accounts list this file used to define no longer exists.
-_ACCOUNT_ID_GSKLUZACEK = 1001
-_ACCOUNT_ID_MARLA_SINGER = 1002
-_ACCOUNT_ID_TYLER_DURDEN = 1003
-_ACCOUNT_ID_MR_ROBOTO = 1004
-_ACCOUNT_ID_MAX_PLANCK = 1005
-
-players: list[SamplePlayer] = [
-    SamplePlayer(
-        id=3001,                    # index 0
-        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
-        alliance_id=alliances[0].id,    # alliance: [SHD] Shadow Stooges
-        kingshot_id="229989369",
-        kingshot_name="Dark Chocolate",
-        discord_nickname="The Dark 'Chocolate' Knight",
-        power=131200000,
-        town_center_level="30",
-        roles=[Role.POWER_ADMIN],
-        discord_guild_avatar_url="https://cdn.discordapp.com/guilds/1517613215138189444/users/835177531904098380/avatars/d5cc62b7313b1f2ea7092bdd9c306653.webp?size=2048",
-    ),
-    SamplePlayer(
-        id=3002,                    # index 1
-        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
-        alliance_id=alliances[0].id,    # alliance: [SHD] Shadow Stooges
-        kingshot_id="229989370",
-        kingshot_name="Milk Chocolate",
-        discord_nickname="Count Chocula",
-        power=131200001,
-        town_center_level="21",
-        roles=[Role.USER],
-    ),
-    SamplePlayer(
-        id=3003,                    # index 2
-        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
-        alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
-        kingshot_id="229989371",
-        kingshot_name="Mint Chocolate",
-        discord_nickname="Luck O' The Irish",
-        power=131200002,
-        town_center_level="22",
-        roles=[Role.USER],
-    ),
-    SamplePlayer(
-        id=3004,                    # index 3
-        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
-        alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
-        kingshot_id="229989372",
-        kingshot_name="White Chocolate",
-        discord_nickname="I'm not a bigot, honestly",
-        power=131200003,
-        town_center_level="23",
-        roles=[Role.USER],
-    ),
-    SamplePlayer(
-        id=3005,                    # index 4
-        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
-        alliance_id=alliances[1].id,    # alliance: [PHX] Dark Phoenix Rising
-        kingshot_id="229989373",
-        kingshot_name="Unsweetened Chocolate",
-        discord_nickname="Just a bitter Old Man",
-        power=131200004,
-        town_center_level="24",
-        roles=[Role.USER],
-    ),
-    SamplePlayer(
-        id=3006,                    # index 5
-        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
-        alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
-        kingshot_id="229989374",
-        kingshot_name="German Chocolate",
-        discord_nickname="Not from Germany",
-        power=131200005,
-        town_center_level="25",
-        roles=[Role.USER],
-    ),
-    SamplePlayer(
-        id=3007,                    # index 6
-        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
-        alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
-        kingshot_id="229989375",
-        kingshot_name="Mexican Chocolate",
-        discord_nickname="Ima SOOO Spicy ¡Olé!",
-        power=131200006,
-        town_center_level="26",
-        roles=[Role.USER],
-    ),
-    SamplePlayer(
-        id=3008,                    # index 7
-        account_id=_ACCOUNT_ID_GSKLUZACEK,  # account: discord_user: gskluzacek
-        alliance_id=alliances[2].id,    # alliance: [UFC] Ultimate Fighting Clan
-        kingshot_id="229989376",
-        kingshot_name="Hazelnut Chocolate",
-        discord_nickname="Better than Nutella",
-        power=131200007,
-        town_center_level="27",
-        roles=[Role.USER],
-    ),
-
-
-    SamplePlayer(
-        id=3009,                    # index 8
-        account_id=_ACCOUNT_ID_MARLA_SINGER,  # account: discord_user: marla_singer_2026
-        alliance_id=alliances[3].id,    # alliance: [UMP] Umbra Pickles
-        kingshot_id="999666333",
-        kingshot_name="Mouthy Marla",
-        discord_nickname="Bride of Tyler Durden",
-        power=61250,
-        town_center_level="19",
-        roles=[Role.ADMIN],
-    ),
-    SamplePlayer(
-        id=3010,                    # index 9
-        account_id=_ACCOUNT_ID_TYLER_DURDEN,  # account: discord_user: tyler_durden_58
-        alliance_id=alliances[3].id,    # alliance: [UMP] Umbra Pickles
-        kingshot_id="222555888",
-        kingshot_name="Jack's Angry Splean",
-        discord_nickname="Tyler Durden",
-        power=45300,
-        town_center_level="22",
-        roles=[Role.SCHEDULER_ADMIN],
-    ),
-    SamplePlayer(
-        id=3011,                    # index 10
-        account_id=_ACCOUNT_ID_MR_ROBOTO,  # account: discord_user: mr_roboto_1983
-        alliance_id=alliances[4].id,    # alliance: [sOS] Hospitable Canteen
-        kingshot_id="111444777",
-        kingshot_name="Desert Moon",
-        discord_nickname="Dennis DeYoung Poser",
-        power=39900,
-        town_center_level="20",
-        roles=[Role.USER],
-    ),
-    SamplePlayer(
-        id=3012,                    # index 11
-        account_id=_ACCOUNT_ID_MAX_PLANCK,  # account: manual_user: max_manual_planck
-        alliance_id=alliances[4].id,    # alliance: [sOS] Hospitable Canteen
-        kingshot_id="314159265",
-        kingshot_name="Schrödinger’s Cat",
-        discord_nickname=None,
-        power=39900,
-        town_center_level="20",
-        roles=[Role.USER],
-    ),
-]
+# Account and Player are real SQLite tables now (app/data/accounts.py, app/data/players.py).
+# The time slots below still live here in memory, so they refer to their players by the
+# fixed player_id values that scripts/preview_players.yaml seeds (run
+# scripts.seed_preview_accounts, then scripts.seed_preview_players, on a fresh DB).
+_PLAYER_ID_DARK_CHOCOLATE = 3001
+_PLAYER_ID_MILK_CHOCOLATE = 3002
+_PLAYER_ID_MINT_CHOCOLATE = 3003
+_PLAYER_ID_MOUTHY_MARLA = 3009
+_PLAYER_ID_JACKS_ANGRY_SPLEAN = 3010
+_PLAYER_ID_DESERT_MOON = 3011
+_PLAYER_ID_SCHRODINGERS_CAT = 3012
 
 events: list[Event] = [
     Event(
@@ -293,7 +157,7 @@ events: list[Event] = [
 time_slots: list[TimeSlot] = [
     TimeSlot(
         id=next_id(),
-        player_id=players[0].id,                # player: Dark Chocolate
+        player_id=_PLAYER_ID_DARK_CHOCOLATE,
         event_id=events[0].id,
         local_start=time(8, 0),
         local_end=time(17, 15),
@@ -301,7 +165,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[0].id,                # player: Dark Chocolate
+        player_id=_PLAYER_ID_DARK_CHOCOLATE,
         event_id=events[0].id,
         local_start=time(17, 15),
         local_end=time(18, 0),
@@ -309,7 +173,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[0].id,                # player: Dark Chocolate
+        player_id=_PLAYER_ID_DARK_CHOCOLATE,
         event_id=events[0].id,
         local_start=time(18, 0),
         local_end=time(19, 0),
@@ -317,7 +181,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[0].id,                # player: Dark Chocolate
+        player_id=_PLAYER_ID_DARK_CHOCOLATE,
         event_id=events[0].id,
         local_start=time(19, 0),
         local_end=time(00, 0),
@@ -325,7 +189,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[1].id,                # player: Milk Chocolate
+        player_id=_PLAYER_ID_MILK_CHOCOLATE,
         event_id=events[0].id,
         local_start=time(19, 0),
         local_end=time(21, 0),
@@ -334,7 +198,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[1].id,                # player: Milk Chocolate
+        player_id=_PLAYER_ID_MILK_CHOCOLATE,
         event_id=events[0].id,
         local_start=time(22, 0),
         local_end=time(23, 0),
@@ -344,7 +208,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[2].id,                # player: Mint Chocolate
+        player_id=_PLAYER_ID_MINT_CHOCOLATE,
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -352,7 +216,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[2].id,                # player: Mint Chocolate
+        player_id=_PLAYER_ID_MINT_CHOCOLATE,
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),
@@ -365,7 +229,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[8].id,                # player: Mouthy Marla
+        player_id=_PLAYER_ID_MOUTHY_MARLA,
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -373,7 +237,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[8].id,                # player: Mouthy Marla
+        player_id=_PLAYER_ID_MOUTHY_MARLA,
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),
@@ -382,7 +246,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[9].id,                # player: Jack's Angry Splean
+        player_id=_PLAYER_ID_JACKS_ANGRY_SPLEAN,
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -390,7 +254,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[9].id,                # player: Jack's Angry Splean
+        player_id=_PLAYER_ID_JACKS_ANGRY_SPLEAN,
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),
@@ -399,7 +263,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[10].id,               # player: Desert Moon
+        player_id=_PLAYER_ID_DESERT_MOON,
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -407,7 +271,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[10].id,               # player: Desert Moon
+        player_id=_PLAYER_ID_DESERT_MOON,
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),
@@ -416,7 +280,7 @@ time_slots: list[TimeSlot] = [
 
     TimeSlot(
         id=next_id(),
-        player_id=players[11].id,               # player: Schrödinger’s Cat
+        player_id=_PLAYER_ID_SCHRODINGERS_CAT,
         event_id=events[1].id,
         local_start=time(6, 0),
         local_end=time(7, 0),
@@ -424,7 +288,7 @@ time_slots: list[TimeSlot] = [
     ),
     TimeSlot(
         id=next_id(),
-        player_id=players[11].id,               # player: Schrödinger’s Cat
+        player_id=_PLAYER_ID_SCHRODINGERS_CAT,
         event_id=events[1].id,
         local_start=time(7, 0),
         local_end=time(8, 0),

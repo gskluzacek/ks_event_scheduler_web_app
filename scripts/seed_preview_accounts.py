@@ -11,9 +11,8 @@ max_manual_planck), inserted here for real so role_switcher.py's "Previewing
 as" dropdown has something to show.
 
 Explicit account_id values (1001-1005, rather than left to autoincrement) so
-that app/models/sample_data.py's still-not-migrated `players` list can
-reference them by a fixed, known account_id instead of an `accounts[N].id`
-lookup into a list that no longer exists.
+that scripts/preview_players.yaml (and seed_preview_players.py) can reference
+them by a fixed, known account_id.
 
 Safe to run more than once - skips any account_name that's already present
 (same idempotency approach as app/data/time_zones.py's bulk_create_time_zones).

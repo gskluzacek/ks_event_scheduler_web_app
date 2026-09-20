@@ -201,26 +201,6 @@ class PlayerRole(SQLModel, table=True):
     )
 
 
-# Transitional: the pre-migration in-memory Player, still backing sample_data.players
-# for pages that haven't moved to the `player` table yet. Deleted with the last of them.
-@dataclass
-class SamplePlayer:
-    id: int
-    account_id: int
-    alliance_id: int
-    kingshot_id: str
-    kingshot_name: str
-    discord_nickname: str | None
-    power: int
-    town_center_level: str
-    roles: list[Role] = field(default_factory=list)  # e.g. [Role.USER] or [Role.ADMIN]
-    discord_guild_avatar_url: str | None = None  # guild-specific avatar override; None means "use the account's global avatar instead" (see app/pages/players.py)
-    create_account_id: int | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    update_account_id: int | None = None
-    updated_at: datetime = field(default_factory=datetime.utcnow)
-
-
 @dataclass
 class TimeSlot:
     id: int

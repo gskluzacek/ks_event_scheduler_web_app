@@ -1,8 +1,8 @@
 # Preview accounts inserted by scripts/seed_preview_accounts.py.
 #
 # Fixed account_id values (1001-1005), rather than left to autoincrement -
-# see that script's docstring for why: app/models/sample_data.py's
-# still-not-migrated `players` list needs a stable account_id to reference.
+# see that script's docstring for why: scripts/preview_players.yaml needs a
+# stable account_id to reference.
 
 - account_id: 1001
   account_type: discord-user

@@ -3,10 +3,9 @@ One-time seed for the preview players (Phase 4 of the SQLite migration).
 
 Companion to scripts/seed_preview_accounts.py - run that one FIRST, since every
 player belongs to one of its accounts (1001-1005). scripts/preview_players.yaml
-holds the same twelve players (and their roles) that
-app/models/sample_data.py still defines in memory for pages that haven't
-migrated yet, with fixed player_id values (3001-3012) so those pages' time
-slots keep pointing at the right player.
+holds the twelve preview players (and their roles), with fixed
+player_id values (3001-3012) so app/models/sample_data.py's still in-memory
+time slots keep pointing at the right player.
 
 Safe to run more than once - skips any player_id that's already present.
 
