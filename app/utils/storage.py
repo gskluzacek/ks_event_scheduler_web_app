@@ -1,19 +1,22 @@
 """
-Helper for persisting a sample-data ID in app.storage.user without it being
-able to crash the app later.
+Helper for persisting an ID in app.storage.user without it being able to crash the app later.
 
 app.storage.user persists to disk across app restarts (nicegui_llms.md Mental
-Model #8), but our mock sample-data IDs come from a single shared counter
-(schema.next_id) that gets renumbered whenever sample_data.py changes - e.g.
-adding new seeded rows earlier in the file shifts every ID that comes after
-them. A stale ID left over from a previous run is not just "wrong data" - if
-it's fed straight into something like ui.select(value=stale_id), NiceGUI
-raises ValueError and the whole page 500s instead of just ignoring it.
+Model #8) and outlives the database: the stored value can point at a row that
+no longer exists (kingshot.db was deleted and reseeded, which Greg does often
+while testing), or, for a filter, at something the current role/viewer can't
+see (e.g. an account filter left over from a broader role). A stale ID is not
+just "wrong data" - if it's fed straight into something like
+ui.select(value=stale_id), NiceGUI raises ValueError and the whole page 500s
+instead of just ignoring it.
 
-Any time we want to remember a sample-data ID across sessions/restarts
-(current preview account, last-viewed event, last-selected player filter,
-etc.), route it through get_valid_id() instead of a bare app.storage.user.get()
-so a stale value just resets to a sane default rather than crashing.
+(This began as a workaround for the old in-memory sample data, whose IDs were
+renumbered on every restart. That data is gone, but the guard is still
+needed for the reasons above - removing it makes those pages crash again.)
+
+Any time we want to remember an ID across sessions/restarts (current preview
+account, a selected filter value, etc.), route it through get_valid_id() instead
+of a bare app.storage.user.get() so a stale value just resets to a sane default.
 """
 from __future__ import annotations
 

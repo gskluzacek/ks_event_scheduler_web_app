@@ -28,10 +28,12 @@ T = TypeVar("T")
 
 
 def get_id_filter(storage_key: str, valid_ids: Container[T]) -> T | None:
-    """Dropdown filter holding a sample-data ID (or None = "no filter").
+    """Dropdown filter holding an ID (or None = "no filter").
 
-    Reuses get_valid_id()'s staleness guard (app/utils/storage.py) so a filter
-    value left over from before a server restart can't crash a ui.select.
+    `valid_ids` is whatever this viewer can currently pick (e.g. the accounts of
+    the players they can see). Reuses get_valid_id()'s staleness guard
+    (app/utils/storage.py) so a stored value that no longer exists, or that the
+    current role can't see, is dropped instead of crashing a ui.select.
     """
     return get_valid_id(storage_key, valid_ids, None, storage=app.storage.user)
 

@@ -30,8 +30,22 @@ def _bulk_insert(rows: list[dict[str, str]]) -> int:
         return len(new_zones)
 
 
+def _insert(zone: TimeZone) -> TimeZone:
+    with get_session() as session:
+        session.add(zone)
+        session.commit()
+        session.refresh(zone)
+        return zone
+
+
 async def list_time_zones() -> list[TimeZone]:
     return await run.io_bound(_list)
+
+
+async def create_time_zone(*, region: str, location: str) -> TimeZone:
+    """Adds one time zone. Raises sqlalchemy.exc.IntegrityError if this region + location
+    pair already exists (unique constraint)."""
+    return await run.io_bound(_insert, TimeZone(region=region, location=location))
 
 
 async def bulk_create_time_zones(rows: list[dict[str, str]]) -> int:

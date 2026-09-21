@@ -6,8 +6,8 @@ from sqlalchemy.exc import IntegrityError
 from app.components import layout, role_switcher
 from app.data import alliances as alliances_repo
 from app.data import kingdoms as kingdoms_repo
-from app.models.sample_data import time_zones
-from app.models.schema import Kingdom, Role, TimeZone, next_id
+from app.data import time_zones as time_zones_repo
+from app.models.schema import Kingdom, Role
 
 
 @ui.page("/admin")
@@ -27,7 +27,7 @@ async def admin_page() -> None:
             with ui.tab_panel(kingdoms_tab):
                 await kingdom_alliance_panel()
             with ui.tab_panel(tz_tab):
-                timezone_panel()
+                await timezone_panel()
 
 
 @ui.refreshable
@@ -50,7 +50,8 @@ async def kingdom_alliance_panel() -> None:
 
 
 @ui.refreshable
-def timezone_panel() -> None:
+async def timezone_panel() -> None:
+    zones = await time_zones_repo.list_time_zones()
     ui.button("Add Time Zone", icon="add", on_click=_open_add_timezone).props("outlined")
     columns = [
         {"name": "region", "label": "Region", "field": "region", "sortable": True},
@@ -59,8 +60,8 @@ def timezone_panel() -> None:
     ]
     # utc_offset is computed on the fly for display only - it is never stored (see schema.TimeZone).
     rows = [
-        {"id": z.id, "region": z.region, "location": z.location, "utc_offset": z.current_utc_offset()}
-        for z in time_zones
+        {"id": z.timezone_id, "region": z.region, "location": z.location, "utc_offset": z.current_utc_offset()}
+        for z in zones
     ]
     ui.table(columns=columns, rows=rows, row_key="id").classes("w-full").props("flat bordered")
 
@@ -71,11 +72,16 @@ def _open_add_timezone() -> None:
         region = ui.input("Region (e.g. America)").props("outlined")
         location = ui.input("Location (e.g. Chicago)").props("outlined")
 
-        def submit() -> None:
-            if not (region.value and location.value):
+        async def submit() -> None:
+            region_value, location_value = (region.value or "").strip(), (location.value or "").strip()
+            if not (region_value and location_value):
                 ui.notify("Region and location are required", type="warning")
                 return
-            time_zones.append(TimeZone(timezone_id=next_id(), region=region.value, location=location.value))
+            try:
+                await time_zones_repo.create_time_zone(region=region_value, location=location_value)
+            except IntegrityError:
+                ui.notify(f"{region_value}/{location_value} already exists.", type="warning")
+                return
             dialog.close()
             timezone_panel.refresh()
 

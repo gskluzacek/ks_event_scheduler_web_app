@@ -1,29 +1,19 @@
 """
-Data model: every entity is a real `SQLModel` table now, migrated table-by-table off the old
-in-memory dataclasses (see web_app_requirements.md > Data Model Overview, and app/db.py and
-app/data/ for the engine and repository side). The only in-memory data left is
-`sample_data.time_zones`, read by admin.py's Time Zones panel alone.
+Data model: every entity is a real `SQLModel` table, migrated one table at a time off the old
+in-memory mock data (see web_app_requirements.md > Data Model Overview, and app/db.py and
+app/data/ for the engine and repository side).
 
 Primary keys use descriptive names (`account_id`, not `id`) rather than the
-NiceGUI/SQLModel default - decided 2026-09, applied table-by-table as each
-migrated. `TimeZone` still has a read-only `.id` property alias because that
-panel's (in-memory) rows use it; delete the alias when the panel migrates.
+NiceGUI/SQLModel default - decided 2026-09, applied as each table migrated.
 """
 from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
 from enum import Enum
-from itertools import count
 
 from dateutil import tz
 from sqlalchemy import DDL, Enum as SAEnum, event as sa_event
 from sqlmodel import CheckConstraint, Field, SQLModel, UniqueConstraint
-
-_id_counter = count(1)
-
-
-def next_id() -> int:
-    return next(_id_counter)
 
 
 class Role(str, Enum):
@@ -63,10 +53,6 @@ class TimeZone(SQLModel, table=True):
     timezone_id: int | None = Field(default=None, primary_key=True)
     region: str      # e.g. "America" - the part before the "/"
     location: str    # e.g. "Chicago" - the part after the "/"
-
-    @property
-    def id(self) -> int | None:  # transitional alias - see module docstring
-        return self.timezone_id
 
     @property
     def iana_name(self) -> str:
