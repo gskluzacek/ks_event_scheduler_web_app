@@ -31,8 +31,8 @@ There is no test suite and no CI yet; verification is manual (run the app, switc
 
 ## Backend migration status (in-memory -> SQLite) - READ THIS FIRST
 
-The app began as an all-in-memory mock (`app/models/sample_data.py`) and is being migrated one table at a time to
-SQLite via SQLModel. The DB file is `kingshot.db` at the repo root (git-ignored, created by `init_db()` on startup).
+The app began as an all-in-memory mock (`app/models/sample_data.py`) and has been migrated one table at a time to
+SQLite via SQLModel; every table is migrated now except that `admin.py`'s Time Zones panel still uses the in-memory list. The DB file is `kingshot.db` at the repo root (git-ignored, created by `init_db()` on startup).
 
 | Phase | Table(s) | State |
 |---|---|---|
@@ -40,7 +40,8 @@ SQLite via SQLModel. The DB file is `kingshot.db` at the repo root (git-ignored,
 | 3 | `account` | done |
 | 4 | `player`, `player_role` | done (latest commits) |
 | 5 | `kingdom`, `alliance` | done (tables, repos, seed, enforced FKs; every page reads/writes the DB; the in-memory kingdom/alliance lists and `SampleKingdom`/`SampleAlliance` are gone; in-memory events reference the pinned alliance ids via named constants) |
-| 6 | `event`, `time_slot` | **in progress.** Step 1 done (tables, overlap triggers, repos `app/data/events.py` + `time_slots.py`, seed `scripts/seed_preview_events_time_slots.py`; `delete_player()` now cascades to slots). Steps 2-3 done: every page now reads/writes the `event` and `time_slot` tables (`events`, `dashboard`, `timeslots` with the Status column/filter, confirmed_ind rules, end-minus-one-second times and overlap handling, `search`, and the Players page slot counts via one grouped query). Remaining: step 4 cleanup (delete `sample_data.events`/`time_slots`, `SampleEvent`/`SampleTimeSlot`, and the now-unused `next_id`/comments), then Greg's planned removal of `scheduled_start`/`scheduled_end`/`is_published` from `event` and the UI (needs another fresh DB). Then the last `sample_data` consumer is `admin.py`'s Time Zones panel (fix it and delete `sample_data.py` + the stale-id cleanup - ask Greg first). |
+| 6 | `event`, `time_slot` | done (tables, overlap triggers, repos `app/data/events.py` + `time_slots.py`, seed `scripts/seed_preview_events_time_slots.py`; every page reads/writes the DB, with the Status column/filter, `confirmed_ind` rules, end-minus-one-second times and overlap handling; `delete_player()` cascades to slots; the in-memory event/time-slot lists and `SampleEvent`/`SampleTimeSlot` are gone) |
+| next | cleanups | (1) Greg plans to drop `event.scheduled_start`/`scheduled_end`/`is_published` and their UI (needs another fresh DB); (2) `admin.py`'s Time Zones panel still reads/appends the in-memory `sample_data.time_zones` instead of the `time_zone` table - fixing it lets `sample_data.py`, `schema.next_id` and the `TimeZone.id` alias be deleted; (3) the owed stale-id cleanup (`app/utils/storage.py` `get_valid_id`). Ask Greg before starting (2)/(3). |
 
 Consequences to keep in mind:
 - `player.alliance_id` is now a real FK to `alliance`, and `app/db.py` turns on `PRAGMA foreign_keys` for every connection,
@@ -48,10 +49,8 @@ Consequences to keep in mind:
 - `discord_guild_id` is UNIQUE per alliance (one guild per alliance, per the requirements), so only seeded alliance 2001 has
   the real test guild; 2002-2006 use fake guild ids and guild verification against them is expected to fail.
 - `delete_player()` deletes the player's time slots and roles too (needed now that `time_slot.player_id` is an enforced FK).
-- `sample_data.py` now holds only `time_zones` (used just by `admin.py`'s Time Zones panel), `events` and `time_slots`
-  (`SampleEvent`/`SampleTimeSlot`, with the OLD field names: `name`, `local_start`, `needs_review`, ...); dashboard, events,
-  timeslots, search and players import it until steps 2-3 migrate them. The DB tables use the NEW names (below). Don't assume a page is DB-backed without checking. Also, `admin.py`'s Time Zones panel still reads the in-memory
-  `sample_data.time_zones` although `time_zone` is a real table (known gap, deliberately out of scope for now).
+- `sample_data.py` now holds only `time_zones`, used just by `admin.py`'s Time Zones panel (a known gap: it shows and appends
+  fake in-memory zones although `time_zone` is a real table). Every other page is DB-backed.
 - Migrated tables use descriptive PKs (`account_id`, `player_id`, `timezone_id`), not `id`. They keep a read-only `.id`
   property alias so unmigrated page code still works; delete the alias and fix call sites when that page migrates.
 - Cleanup owed after migration: the "stale id" handling in `app/utils/storage.py` (`get_valid_id`) exists only because
@@ -116,11 +115,9 @@ Consequences to keep in mind:
   Don't start this without Greg's go-ahead.
 
 ### Preview data and fresh-DB recipe
-Pinned ids matter because unmigrated data references them: preview accounts 1001-1005, kingdoms 4001-4002, alliances
-2001-2006 (`scripts/preview_kingdoms_alliances.yaml`; the in-memory events name alliances 2001/2002 via constants in
-`sample_data.py`), players 3001-3012 (`scripts/preview_players.yaml`), events 5001- and time slots 6001-
-(`scripts/preview_events_time_slots.yaml`; event dates are day offsets from seed time), and the still-in-memory time slots
-reference player ids through named constants in `sample_data.py`. On a fresh DB: run the app, complete `/setup`, then
+The preview data uses pinned ids so the seed files can reference each other: accounts 1001-1005, kingdoms 4001-4002, alliances
+2001-2006 (`scripts/preview_kingdoms_alliances.yaml`), players 3001-3012 (`scripts/preview_players.yaml`), events 5001- and
+time slots 6001- (`scripts/preview_events_time_slots.yaml`; event dates are day offsets from seed time). On a fresh DB: run the app, complete `/setup`, then
 `seed_preview_accounts`, `seed_preview_kingdoms_alliances`, `seed_preview_players`, `seed_preview_events_time_slots` (that
 order; each stage's FKs need the previous ones). Delete `kingshot.db` first whenever it predates the tables/constraints in play
 (`create_all` never alters existing tables, e.g. it won't add the new `event`/`time_slot` FKs or triggers).
@@ -133,7 +130,7 @@ app/
   db.py              engine, init_db(), get_session()
   setup_gate.py      middleware: redirects gated routes to /setup until an account exists
   models/schema.py   Role/AccountType/TimeSlotType enums, SQLModel tables, remaining dataclasses
-  models/sample_data.py  seeded in-memory data for not-yet-migrated tables
+  models/sample_data.py  the last in-memory data (`time_zones`, for admin.py's Time Zones panel only)
   data/              repositories (accounts, players, time_zones, kingdoms, alliances, events, time_slots)
   pages/             one module per @ui.page (importing the module registers the route)
   components/        layout.py (header/nav, `async with layout.frame(route)`), role_switcher.py, timezone_select.py
@@ -249,8 +246,8 @@ Discord/network failures to the user instead of swallowing them.
 ## Stale or non-runtime material - don't trust or edit without asking
 - `documentation/app/**` (per-module markdown) is OUT OF DATE and predates the SQLite migration. Code and this file win.
   It also has no docs for `db.py`, `data/`, `setup.py`, `setup_gate.py`, `account_player.py`.
-- `README.md` still says "all data lives in-memory" and "No persistence"; that is no longer true for accounts, players and
-  time zones.
+- `README.md` still says "all data lives in-memory" and "No persistence"; that is no longer true: every table is in SQLite now
+  (only admin's Time Zones panel still uses fake in-memory zones).
 - `.github/copilot-instructions.md` and `.github/instructions/*` (plus `.github/agents/*`) are GitHub Copilot config.
   They pre-date the migration and omit SQLModel; treat as background only.
 - `discord_integration_poc/`, `nicegui_exploration/`: historical/sandbox, not part of the runtime.

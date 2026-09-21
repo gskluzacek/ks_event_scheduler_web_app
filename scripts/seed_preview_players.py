@@ -5,8 +5,8 @@ Companion to scripts/seed_preview_accounts.py and
 scripts/seed_preview_kingdoms_alliances.py - run those FIRST, since every player
 belongs to one of the accounts (1001-1005) and alliances (2001-2006) they seed. scripts/preview_players.yaml
 holds the twelve preview players (and their roles), with fixed
-player_id values (3001-3012) so app/models/sample_data.py's still in-memory
-time slots keep pointing at the right player.
+player_id values (3001-3012) so scripts/preview_events_time_slots.yaml's time
+slots can point at the right player.
 
 Safe to run more than once - skips any player_id that's already present.
 

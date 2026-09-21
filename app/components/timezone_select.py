@@ -7,9 +7,7 @@ gets unwieldy as the list grows, so instead we pick region first (e.g.
 (e.g. "Chicago"). The full IANA name is the two values joined with "/".
 
 Takes its `zones` as a plain argument rather than importing a fixed list -
-callers fetch whatever list is right for them (real DB rows for the setup
-wizard, the sample_data fixture for the still-mock /register/complete flow)
-and pass it in, so this component doesn't need to know or care where it
+callers fetch whatever list is right for them (the real `time_zone` rows) and pass it in, so this component doesn't need to know or care where it
 came from.
 """
 from __future__ import annotations

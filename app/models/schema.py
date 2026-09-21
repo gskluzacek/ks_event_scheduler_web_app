@@ -1,26 +1,16 @@
 """
-Data model. Being migrated table-by-table from in-memory dataclasses to real
-SQLite tables (see web_app_requirements.md > Data Model Overview) - see
-app/db.py and app/data/ for the SQLModel/repository side of that migration.
-
-TimeZone, Account, Player, PlayerRole, Kingdom, Alliance, Event and TimeSlot are real
-`SQLModel` tables now. SampleEvent/SampleTimeSlot are the transitional in-memory
-versions of Event/TimeSlot (module-level lists in app/models/sample_data.py), kept only
-until their pages migrate; Module-level state is
-normally an anti-pattern in NiceGUI (shared across all users - see
-nicegui_llms.md Mental Model #2), but for this mock every "user" is really
-just us previewing roles, so a shared in-memory store is fine and even
-useful (edits by one role are visible when you switch roles).
+Data model: every entity is a real `SQLModel` table now, migrated table-by-table off the old
+in-memory dataclasses (see web_app_requirements.md > Data Model Overview, and app/db.py and
+app/data/ for the engine and repository side). The only in-memory data left is
+`sample_data.time_zones`, read by admin.py's Time Zones panel alone.
 
 Primary keys use descriptive names (`account_id`, not `id`) rather than the
 NiceGUI/SQLModel default - decided 2026-09, applied table-by-table as each
-migrates off `sample_data.py`. Migrated tables keep a read-only `.id`
-property alias so not-yet-migrated page code keeps working unchanged; the
-alias is deleted (and call sites fixed) when that page's own patch lands.
+migrated. `TimeZone` still has a read-only `.id` property alias because that
+panel's (in-memory) rows use it; delete the alias when the panel migrates.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import date, datetime, time, timezone
 from enum import Enum
 from itertools import count
@@ -304,39 +294,3 @@ for _trigger_name, _trigger_event, _own_row_filter in (
             f"BEGIN SELECT RAISE(ABORT, '{_OVERLAP_MESSAGE}'); END"
         ).execute_if(dialect="sqlite"),
     )
-
-
-# Transitional in-memory versions, deleted along with sample_data's events/time_slots once the
-# last page reading those lists has migrated.
-@dataclass
-class SampleTimeSlot:
-    id: int
-    player_id: int
-    event_id: int
-    local_start: time  # time-only (no date) - the player's recurring local availability window
-    local_end: time
-    time_slot_type: TimeSlotType = TimeSlotType.PREFERRED
-    needs_review: bool = False
-    create_account_id: int | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    update_account_id: int | None = None
-    updated_at: datetime = field(default_factory=datetime.utcnow)
-
-
-@dataclass
-class SampleEvent:
-    id: int
-    alliance_id: int
-    name: str
-    description: str
-    begin_date: date | None = None  # date-only window during which the event may occur
-    end_date: date | None = None
-    qty_to_schedule: int = 1  # how many occurrences of this event to schedule within the window
-    active_ind: bool = True
-    scheduled_start: datetime | None = None  # the actual scheduled occurrence, once determined
-    scheduled_end: datetime | None = None
-    is_published: bool = False
-    create_account_id: int | None = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    update_account_id: int | None = None
-    updated_at: datetime = field(default_factory=datetime.utcnow)

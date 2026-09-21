@@ -1,8 +1,9 @@
 # Preview kingdoms and alliances inserted by scripts/seed_preview_kingdoms_alliances.py.
 #
 # Fixed ids (kingdoms 4001-4002, alliances 2001-2006), referenced by scripts/preview_players.yaml
-# (players) and by the still-in-memory events in app/models/sample_data.py. Only alliance 2001 has a real Discord guild (Greg's test guild, where corn-bot-1 is a
-# member); the rest are fake because discord_guild_id is UNIQUE per alliance.
+# (players) and scripts/preview_events_time_slots.yaml (events). Only alliance 2001 has a real
+# Discord guild (Greg's test guild, where corn-bot-1 is a member); the rest are fake because
+# discord_guild_id is UNIQUE per alliance.
 
 kingdoms:
   - kingdom_id: 4001
