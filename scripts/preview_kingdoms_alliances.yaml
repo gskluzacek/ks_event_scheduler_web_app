@@ -1,0 +1,44 @@
+# Preview kingdoms and alliances inserted by scripts/seed_preview_kingdoms_alliances.py.
+#
+# Fixed ids (kingdoms 4001-4002, alliances 2001-2006) matching app/models/sample_data.py, which still
+# feeds the not-yet-migrated pages, and scripts/preview_players.yaml, whose players reference the
+# alliances. Only alliance 2001 has a real Discord guild (Greg's test guild, where corn-bot-1 is a
+# member); the rest are fake because discord_guild_id is UNIQUE per alliance.
+
+kingdoms:
+  - kingdom_id: 4001
+    name: "#1542"
+  - kingdom_id: 4002
+    name: "#1467"
+
+alliances:
+  - alliance_id: 2001
+    kingdom_id: 4001
+    name: "[SHD] Shadow Stooges"
+    discord_guild_id: "1517613215138189444"
+    discord_guild_name: "Dark Lords of the Shadow Realm"
+  - alliance_id: 2002
+    kingdom_id: 4001
+    name: "[PHX] Dark Phoenix Rising"
+    discord_guild_id: "900000000000002002"
+    discord_guild_name: "Mister Mojo Risin'"
+  - alliance_id: 2003
+    kingdom_id: 4002
+    name: "[UFC] Ultimate Fighting Clan"
+    discord_guild_id: "900000000000002003"
+    discord_guild_name: "Drink Clamoto Juice and Live!"
+  - alliance_id: 2004
+    kingdom_id: 4002
+    name: "[UMP] Umbra Pickles"
+    discord_guild_id: "900000000000002004"
+    discord_guild_name: "NOT Magic: The Gathering"
+  - alliance_id: 2005
+    kingdom_id: 4002
+    name: "[sOS] Hospitable Canteen"
+    discord_guild_id: "900000000000002005"
+    discord_guild_name: "Same Old Shit"
+  - alliance_id: 2006
+    kingdom_id: 4002
+    name: "[STN] Silent Thunder and Nonsense"
+    discord_guild_id: "900000000000002006"
+    discord_guild_name: "Silent But Not So Deadly"

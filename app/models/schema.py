@@ -3,9 +3,11 @@ Data model. Being migrated table-by-table from in-memory dataclasses to real
 SQLite tables (see web_app_requirements.md > Data Model Overview) - see
 app/db.py and app/data/ for the SQLModel/repository side of that migration.
 
-TimeZone, Account, Player and PlayerRole are real `SQLModel` tables now.
-Kingdom, Alliance, TimeSlot and Event are still plain dataclasses in module-level lists
-(app/models/sample_data.py) until their turn comes; Module-level state is
+TimeZone, Account, Player, PlayerRole, Kingdom and Alliance are real `SQLModel` tables now.
+TimeSlot and Event are still plain dataclasses in module-level lists
+(app/models/sample_data.py) until their turn comes (SampleKingdom/SampleAlliance
+are the transitional in-memory versions of Kingdom/Alliance, used only until
+their pages migrate); Module-level state is
 normally an anti-pattern in NiceGUI (shared across all users - see
 nicegui_llms.md Mental Model #2), but for this mock every "user" is really
 just us previewing roles, so a shared in-memory store is fine and even
@@ -90,14 +92,56 @@ class TimeZone(SQLModel, table=True):
         return f"UTC{offset[:3]}:{offset[3:]}" if offset else "UTC+00:00"
 
 
+class Kingdom(SQLModel, table=True):
+    __tablename__ = "kingdom"
+    __table_args__ = (UniqueConstraint("name", name="uq_kingdom_name"),)
+
+    kingdom_id: int | None = Field(default=None, primary_key=True)
+    name: str  # e.g. "#1542"
+    create_account_id: int | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    update_account_id: int | None = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    @property
+    def id(self) -> int | None:  # transitional alias - see module docstring
+        return self.kingdom_id
+
+
+class Alliance(SQLModel, table=True):
+    """Belongs to exactly one kingdom and has exactly one Discord guild (per
+    web_app_requirements.md > relationships), hence the unique constraints below."""
+    __tablename__ = "alliance"
+    __table_args__ = (
+        UniqueConstraint("kingdom_id", "name", name="uq_alliance_kingdom_id_name"),
+        UniqueConstraint("discord_guild_id", name="uq_alliance_discord_guild_id"),
+    )
+
+    alliance_id: int | None = Field(default=None, primary_key=True)
+    kingdom_id: int = Field(foreign_key="kingdom.kingdom_id", index=True)
+    name: str
+    discord_guild_id: str
+    discord_guild_name: str
+    create_account_id: int | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    update_account_id: int | None = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    @property
+    def id(self) -> int | None:  # transitional alias - see module docstring
+        return self.alliance_id
+
+
+# Transitional in-memory versions, deleted along with sample_data's kingdoms/alliances
+# once the last page reading those lists has migrated.
 @dataclass
-class Kingdom:
+class SampleKingdom:
     id: int
     name: str
 
 
 @dataclass
-class Alliance:
+class SampleAlliance:
     id: int
     name: str
     kingdom_id: int
@@ -162,15 +206,14 @@ class Player(SQLModel, table=True):
     the separate `player_role` table (PlayerRole below), not on this row - see
     app/data/players.py's roles_by_player_id()/set_roles().
 
-    `alliance_id` is a plain int with no DB-level FK: Alliance is still an
-    in-memory dataclass (app/models/sample_data.py, ids pinned to literals).
-    Add `foreign_key="alliance.alliance_id"` when Alliance migrates.
+    `alliance_id` is a real FK to `alliance` (enforced - see app/db.py's foreign_keys
+    PRAGMA), so the preview players can only be seeded after the preview alliances.
     """
     __tablename__ = "player"
 
     player_id: int | None = Field(default=None, primary_key=True)
     account_id: int = Field(foreign_key="account.account_id", index=True)
-    alliance_id: int = Field(index=True)
+    alliance_id: int = Field(foreign_key="alliance.alliance_id", index=True)
     kingshot_id: str
     kingshot_name: str
     discord_nickname: str | None = None

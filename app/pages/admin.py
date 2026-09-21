@@ -4,7 +4,9 @@ from nicegui import ui
 
 from app.components import layout, role_switcher
 from app.models.sample_data import alliances, kingdoms, time_zones
-from app.models.schema import Alliance, Kingdom, Role, TimeZone, next_id
+from app.models.schema import Role, TimeZone, next_id
+# Transitional in-memory versions - this page migrates to the kingdom/alliance tables in a later step.
+from app.models.schema import SampleAlliance as Alliance, SampleKingdom as Kingdom
 
 
 @ui.page("/admin")

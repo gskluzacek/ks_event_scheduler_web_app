@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 
 from app.models.schema import (
-    Alliance, Event, Kingdom, TimeSlot,
+    Event, SampleAlliance, SampleKingdom, TimeSlot,
     TimeSlotType, TimeZone, next_id,
 )
 
@@ -25,57 +25,63 @@ time_zones: list[TimeZone] = [
     TimeZone(timezone_id=next_id(), region="Australia", location="Sydney"),
 ]
 
-kingdoms: list[Kingdom] = [
-    Kingdom(next_id(), "#1542"),
-    Kingdom(next_id(), "#1467"),
+# Kingdom ids are pinned literals (4001-4002) for the same reason as the alliance ids below:
+# the `kingdom` and `alliance` tables are seeded (scripts/seed_preview_kingdoms_alliances.py)
+# from scripts/preview_kingdoms_alliances.yaml with these same ids - keep the two in sync.
+kingdoms: list[SampleKingdom] = [
+    SampleKingdom(4001, "#1542"),
+    SampleKingdom(4002, "#1467"),
 ]
 
 # Alliance ids are pinned literals (2001-2006), not next_id(): the `player` table's
-# alliance_id has no DB FK yet, so scripts/preview_players.yaml refers to them by
-# these fixed values. Same trick as account_id 1001-1005 above.
-# Real guild - Greg's corn-bot-1 is already a member, so this alliance can exercise the
-# actual bot-token guild-membership check end to end (see auth/discord_guild.py).
-alliances: list[Alliance] = [
-    Alliance(
+# alliance_id is a real FK to the seeded `alliance` table, so scripts/preview_players.yaml
+# refers to them by these fixed values. Same trick as account_id 1001-1005.
+# Only the FIRST alliance (2001) has a real guild - Greg's corn-bot-1 is already a member, so it
+# exercises the actual bot-token guild-membership check end to end (see auth/discord_guild.py).
+# The other five use obviously-fake guild ids, because discord_guild_id is UNIQUE in the
+# `alliance` table (one guild per alliance) - verification against them is expected to fail,
+# which doubles as the negative test. Keep in sync with scripts/preview_kingdoms_alliances.yaml.
+alliances: list[SampleAlliance] = [
+    SampleAlliance(
         id=2001,            # index 0
         name="[SHD] Shadow Stooges",
         kingdom_id=kingdoms[0].id,
         discord_guild_id="1517613215138189444",
         discord_guild_name="Dark Lords of the Shadow Realm"
     ),
-    Alliance(
+    SampleAlliance(
         id=2002,            # index 1
         name="[PHX] Dark Phoenix Rising",
         kingdom_id=kingdoms[0].id,
-        discord_guild_id="1517613215138189444",
+        discord_guild_id="900000000000002002",
         discord_guild_name="Mister Mojo Risin'"
     ),
-    Alliance(
+    SampleAlliance(
         id=2003,            # index 2
         name="[UFC] Ultimate Fighting Clan",
         kingdom_id=kingdoms[1].id,
-        discord_guild_id="1517613215138189444",
+        discord_guild_id="900000000000002003",
         discord_guild_name="Drink Clamoto Juice and Live!"
     ),
-    Alliance(
+    SampleAlliance(
         id=2004,            # index 3
         name="[UMP] Umbra Pickles",
         kingdom_id=kingdoms[1].id,
-        discord_guild_id="1517613215138189444",
+        discord_guild_id="900000000000002004",
         discord_guild_name="NOT Magic: The Gathering"
     ),
-    Alliance(
+    SampleAlliance(
         id=2005,            # index 4
         name="[sOS] Hospitable Canteen",
         kingdom_id=kingdoms[1].id,
-        discord_guild_id="1517613215138189444",
+        discord_guild_id="900000000000002005",
         discord_guild_name="Same Old Shit"
     ),
-    Alliance(
+    SampleAlliance(
         id=2006,            # index 5
         name="[STN] Silent Thunder and Nonsense",
         kingdom_id=kingdoms[1].id,
-        discord_guild_id="1517613215138189444",
+        discord_guild_id="900000000000002006",
         discord_guild_name="Silent But Not So Deadly"
     ),
 ]

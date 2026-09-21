@@ -1,8 +1,8 @@
 # Preview players inserted by scripts/seed_preview_players.py (run AFTER seed_preview_accounts).
 #
-# Fixed player_id values (3001-3012) and alliance_id values (2001-2006, the pinned
-# ids in app/models/sample_data.py) so still-not-migrated time slots can reference
-# players by a stable id. alliance_id has no DB FK until Alliance migrates.
+# Fixed player_id values (3001-3012) so still-not-migrated time slots can reference
+# players by a stable id, and alliance_id values (2001-2006) that reference the
+# alliances seeded by scripts/preview_kingdoms_alliances.yaml (enforced FK).
 
 - player_id: 3001
   account_id: 1001

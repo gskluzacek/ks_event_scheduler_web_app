@@ -1,8 +1,9 @@
 """
 One-time seed for the preview players (Phase 4 of the SQLite migration).
 
-Companion to scripts/seed_preview_accounts.py - run that one FIRST, since every
-player belongs to one of its accounts (1001-1005). scripts/preview_players.yaml
+Companion to scripts/seed_preview_accounts.py and
+scripts/seed_preview_kingdoms_alliances.py - run those FIRST, since every player
+belongs to one of the accounts (1001-1005) and alliances (2001-2006) they seed. scripts/preview_players.yaml
 holds the twelve preview players (and their roles), with fixed
 player_id values (3001-3012) so app/models/sample_data.py's still in-memory
 time slots keep pointing at the right player.
@@ -20,7 +21,7 @@ import yaml
 from sqlmodel import select
 
 from app.db import get_session, init_db
-from app.models.schema import Account, Player, PlayerRole, Role
+from app.models.schema import Account, Alliance, Player, PlayerRole, Role
 
 PREVIEW_PLAYERS_PATH = Path(__file__).with_name("preview_players.yaml")
 
@@ -33,6 +34,11 @@ def seed() -> None:
         missing_accounts = {r["account_id"] for r in rows} - set(session.exec(select(Account.account_id)))
         if missing_accounts:
             raise SystemExit(f"Missing account_id(s) {sorted(missing_accounts)} - run scripts.seed_preview_accounts first.")
+        missing_alliances = {r["alliance_id"] for r in rows} - set(session.exec(select(Alliance.alliance_id)))
+        if missing_alliances:
+            raise SystemExit(
+                f"Missing alliance_id(s) {sorted(missing_alliances)} - run scripts.seed_preview_kingdoms_alliances first."
+            )
         now = datetime.utcnow()
         new_rows = [r for r in rows if r["player_id"] not in existing_ids]
         for row in new_rows:

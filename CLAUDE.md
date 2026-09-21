@@ -20,8 +20,9 @@ coordinate event windows.
 uv sync                                        # install deps (Python >=3.14, see .python-version)
 cp .env.example .env                           # then fill in Discord creds + STORAGE_SECRET
 uv run python -m app.main                      # run the app -> http://localhost:8080
-uv run python -m scripts.seed_preview_accounts # seed the 5 preview accounts (ids 1001-1005)
-uv run python -m scripts.seed_preview_players  # seed preview players (needs accounts first)
+uv run python -m scripts.seed_preview_accounts            # 5 preview accounts (ids 1001-1005)
+uv run python -m scripts.seed_preview_kingdoms_alliances  # 2 kingdoms (4001-4002), 6 alliances (2001-2006)
+uv run python -m scripts.seed_preview_players             # 12 players (needs accounts AND alliances first)
 ```
 
 Always run from the repo root with `-m`. All imports are `app.`-prefixed, so `cd app && python main.py` breaks.
@@ -37,14 +38,20 @@ SQLite via SQLModel. The DB file is `kingshot.db` at the repo root (git-ignored,
 | 1-2 | `time_zone`, `account` groundwork + first-run setup wizard (`/setup`) | done |
 | 3 | `account` | done |
 | 4 | `player`, `player_role` | done (latest commits) |
-| next | `kingdom`, `alliance`, `time_slot`, `event` | **still in-memory dataclasses** in `app/models/schema.py` + lists in `app/models/sample_data.py` |
+| 5 | `kingdom`, `alliance` | **in progress.** Step 1 done (tables, repos, seed, enforced FKs); pages still read the in-memory `sample_data` lists (`SampleKingdom`/`SampleAlliance`). Remaining: players/account_player, timeslots/search, admin/events, then remove the sample lists. |
+| next | `time_slot`, `event` | **still in-memory dataclasses** in `app/models/schema.py` + lists in `app/models/sample_data.py` |
 
 Consequences to keep in mind:
-- `player.alliance_id` has no DB foreign key yet (Alliance is in-memory, ids pinned to literals 2001-2006). Add
-  `foreign_key="alliance.alliance_id"` when Alliance migrates, along with Kingdom.
+- `player.alliance_id` is now a real FK to `alliance`, and `app/db.py` turns on `PRAGMA foreign_keys` for every connection,
+  so ALL declared FKs are enforced (they weren't before). While pages still use the in-memory alliances, an alliance added
+  through the Site Maintenance page (`admin.py`) exists only in memory, so adding a player to it will fail the FK until
+  that page migrates.
+- `discord_guild_id` is UNIQUE per alliance (one guild per alliance, per the requirements), so only seeded alliance 2001 has
+  the real test guild; 2002-2006 use fake guild ids and guild verification against them is expected to fail.
 - Time slots are in memory, so `delete_player()` can't cascade to them (orphans). Resolves when `time_slot` migrates.
-- Pages still importing `sample_data`: dashboard, events, search, timeslots, players (for alliances/time slots),
-  admin. Don't assume a page is DB-backed without checking.
+- Pages still importing `sample_data`: dashboard, events, search, timeslots, players (for kingdoms/alliances/time slots),
+  admin. Don't assume a page is DB-backed without checking. Also, `admin.py`'s Time Zones panel still reads the in-memory
+  `sample_data.time_zones` although `time_zone` is a real table (known gap, deliberately out of scope for now).
 - Migrated tables use descriptive PKs (`account_id`, `player_id`, `timezone_id`), not `id`. They keep a read-only `.id`
   property alias so unmigrated page code still works; delete the alias and fix call sites when that page migrates.
 - Cleanup owed after migration: the "stale id" handling in `app/utils/storage.py` (`get_valid_id`) exists only because
@@ -75,8 +82,9 @@ Consequences to keep in mind:
   `discord_user_id` is unique (NULLs for manual accounts don't collide), `time_zone(region, location)` is unique, and enum
   columns get CHECK constraints. Rationale: other tools may edit the SQLite file, so don't assume only this app writes it.
 - **Enum columns store the enum `.value`** (`"manual-user"`), not the member name; SQLAlchemy's default stores the name.
-- **`player.alliance_id` is a plain int with pinned ids** until Alliance migrates (see above). `player_role` is its own table
-  (matches `web_app_requirements.md`); SuperAdmin is never in it.
+- **FKs are enforced** (`PRAGMA foreign_keys=ON` in `app/db.py`, decided during the kingdom/alliance migration), and
+  `alliance.discord_guild_id` is UNIQUE. `player_role` is its own table (matches `web_app_requirements.md`); SuperAdmin is
+  never in it.
 - **Planned `time_slot` schema** (agreed in chat, not yet built): `tslot_id`, `event_id`, `player_id`, `tslot_type`,
   `priority` (small int, NULL default = no priority, 1 = highest), `start_time`, `end_time`, `validate_ind` (pure rename of
   `needs_review`, same polarity, defaults False), plus the four audit columns. Current dataclass still uses the old names.
@@ -87,10 +95,13 @@ Consequences to keep in mind:
   Don't start this without Greg's go-ahead.
 
 ### Preview data and fresh-DB recipe
-Pinned ids matter because unmigrated data references them: preview accounts 1001-1005, alliances 2001-2006 (in
-`sample_data.py`), players 3001-3012 (`scripts/preview_players.yaml`), and the in-memory time slots reference player ids
-through named constants in `sample_data.py`. On a fresh DB: run the app, complete `/setup`, then
-`seed_preview_accounts`, then `seed_preview_players`. Otherwise time slots point at players that don't exist.
+Pinned ids matter because unmigrated data references them: preview accounts 1001-1005, kingdoms 4001-4002, alliances
+2001-2006 (`scripts/preview_kingdoms_alliances.yaml`, mirrored by `sample_data.py` until the pages migrate - keep the two in
+sync), players 3001-3012 (`scripts/preview_players.yaml`), and the in-memory time slots reference player ids through named
+constants in `sample_data.py`. On a fresh DB: run the app, complete `/setup`, then `seed_preview_accounts`, then
+`seed_preview_kingdoms_alliances`, then `seed_preview_players` (that order; the players FK needs both). Otherwise time slots
+point at players that don't exist. Delete `kingshot.db` first if it predates the kingdom/alliance tables, since `create_all`
+won't add the new player->alliance FK to an existing table.
 
 ## Architecture
 
@@ -101,7 +112,7 @@ app/
   setup_gate.py      middleware: redirects gated routes to /setup until an account exists
   models/schema.py   Role/AccountType/TimeSlotType enums, SQLModel tables, remaining dataclasses
   models/sample_data.py  seeded in-memory data for not-yet-migrated tables
-  data/              repositories (accounts, players, time_zones)
+  data/              repositories (accounts, players, time_zones, kingdoms, alliances)
   pages/             one module per @ui.page (importing the module registers the route)
   components/        layout.py (header/nav, `async with layout.frame(route)`), role_switcher.py, timezone_select.py
   auth/              Discord OAuth2 (discord_oauth.py) + bot-token guild membership check (discord_guild.py)
