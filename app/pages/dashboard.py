@@ -4,8 +4,9 @@ from nicegui import ui
 
 from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
+from app.data import events as events_repo
 from app.data import players as players_repo
-from app.models.sample_data import events, time_slots
+from app.models.sample_data import time_slots
 
 
 @ui.page("/dashboard")
@@ -16,6 +17,7 @@ async def dashboard_page() -> None:
         ui.label(f"Welcome back — previewing as {role.value}").classes("text-2xl font-bold")
 
         account_count = len(await accounts_repo.list_accounts())
+        events = await events_repo.list_events()
         with ui.row().classes("w-full gap-4"):
             _stat_card("Accounts", account_count, "badge")
             _stat_card("Players", len(await players_repo.list_players()), "groups")
@@ -26,7 +28,7 @@ async def dashboard_page() -> None:
             ui.label("Upcoming Events").classes("text-lg font-semibold")
             for event in events:
                 with ui.row().classes("items-center justify-between w-full py-1"):
-                    ui.label(event.name)
+                    ui.label(event.event_name)
                     ui.badge("Published" if event.is_published else "Draft",
                               color="positive" if event.is_published else "grey")
 

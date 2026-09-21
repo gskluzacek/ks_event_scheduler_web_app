@@ -3,13 +3,12 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from nicegui import ui
+from sqlalchemy.exc import IntegrityError
 
 from app.components import layout, role_switcher
 from app.data import alliances as alliances_repo
-from app.models.sample_data import events
-from app.models.schema import Role, next_id
-# Transitional in-memory version - this page migrates to the event table in a later step.
-from app.models.schema import SampleEvent as Event
+from app.data import events as events_repo
+from app.models.schema import Event, Role
 
 
 @ui.page("/events")
@@ -29,13 +28,16 @@ async def events_page() -> None:
 async def event_list() -> None:
     can_manage = role_switcher.is_at_least(Role.SCHEDULER_ADMIN, Role.POWER_ADMIN)
     alliance_name_by_id = {a.alliance_id: a.name for a in await alliances_repo.list_alliances()}
+    events = await events_repo.list_events()
+    if not events:
+        ui.label("⚠️ No events yet").classes("text-sm text-grey-5")
     for event in events:
         alliance = alliance_name_by_id.get(event.alliance_id, "?")
         with ui.card().classes("w-full"):
             with ui.row().classes("w-full items-center justify-between"):
                 with ui.column().classes("gap-0"):
-                    ui.label(event.name).classes("text-lg font-semibold")
-                    ui.label(f"{alliance} — {event.description}").classes("text-sm text-grey-6")
+                    ui.label(event.event_name).classes("text-lg font-semibold")
+                    ui.label(f"{alliance} — {event.event_desc}").classes("text-sm text-grey-6")
                     if event.begin_date and event.end_date:
                         ui.label(
                             f"Window: {event.begin_date.isoformat()} to {event.end_date.isoformat()} "
@@ -58,8 +60,10 @@ async def event_list() -> None:
                             .tooltip("Run scheduling algorithm")
 
 
-def _toggle_publish(event: Event) -> None:
-    event.is_published = not event.is_published
+async def _toggle_publish(event: Event) -> None:
+    await events_repo.update_event(
+        event.event_id, update_account_id=role_switcher.current_account_id(), is_published=not event.is_published
+    )
     event_list.refresh()
 
 
@@ -83,19 +87,34 @@ async def _open_add_dialog() -> None:
         qty_to_schedule = ui.number("Qty to Schedule", value=1, min=1) \
             .props("outlined").classes("w-full")
 
-        def submit() -> None:
-            if not (name.value and alliance_select.value):
+        async def submit() -> None:
+            if not (name.value and name.value.strip() and alliance_select.value):
                 ui.notify("Name and alliance are required", type="warning")
                 return
-            events.append(Event(
-                id=next_id(),
-                alliance_id=alliance_select.value,
-                name=name.value,
-                description=description.value or "",
-                begin_date=datetime.strptime(begin_date.value, "%Y-%m-%d").date() if begin_date.value else None,
-                end_date=datetime.strptime(end_date.value, "%Y-%m-%d").date() if end_date.value else None,
-                qty_to_schedule=int(qty_to_schedule.value or 1),
-            ))
+            begin = datetime.strptime(begin_date.value, "%Y-%m-%d").date() if begin_date.value else None
+            end = datetime.strptime(end_date.value, "%Y-%m-%d").date() if end_date.value else None
+            try:
+                await events_repo.create_event(
+                    alliance_id=alliance_select.value,
+                    event_name=name.value.strip(),
+                    event_desc=description.value or "",
+                    begin_date=begin,
+                    end_date=end,
+                    qty_to_schedule=int(qty_to_schedule.value or 1),
+                    create_account_id=role_switcher.current_account_id(),
+                )
+            except IntegrityError as e:
+                # The table's constraints are the source of truth; this just turns a violation into a message.
+                reason = str(e.orig)
+                if "ck_event_dates" in reason:
+                    ui.notify("The begin date can't be after the end date.", type="warning")
+                elif "ck_event_qty_to_schedule" in reason:
+                    ui.notify("Qty to Schedule must be at least 1.", type="warning")
+                elif "UNIQUE" in reason:
+                    ui.notify("That alliance already has an event with this name.", type="warning")
+                else:
+                    raise
+                return
             dialog.close()
             event_list.refresh()
             ui.notify("Event created", type="positive")
