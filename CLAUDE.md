@@ -40,7 +40,7 @@ SQLite via SQLModel. The DB file is `kingshot.db` at the repo root (git-ignored,
 | 3 | `account` | done |
 | 4 | `player`, `player_role` | done (latest commits) |
 | 5 | `kingdom`, `alliance` | done (tables, repos, seed, enforced FKs; every page reads/writes the DB; the in-memory kingdom/alliance lists and `SampleKingdom`/`SampleAlliance` are gone; in-memory events reference the pinned alliance ids via named constants) |
-| 6 | `event`, `time_slot` | **in progress.** Step 1 done (tables, overlap triggers, repos `app/data/events.py` + `time_slots.py`, seed `scripts/seed_preview_events_time_slots.py`; `delete_player()` now cascades to slots). Step 2 done (`events.py` + the dashboard's events read/write the DB). `timeslots.py` still reads the in-memory `SampleEvent`/`SampleTimeSlot` lists. Remaining: step 3 `timeslots.py` + `search.py` + Players page slot count (grouped query), step 4 cleanup (delete the sample lists/dataclasses). At the end, Greg wants `scheduled_start`/`scheduled_end`/`is_published` dropped from `event` and the UI (needs another fresh DB). Then the last `sample_data` consumer is `admin.py`'s Time Zones panel (fix it and delete `sample_data.py` + the stale-id cleanup - ask Greg first). |
+| 6 | `event`, `time_slot` | **in progress.** Step 1 done (tables, overlap triggers, repos `app/data/events.py` + `time_slots.py`, seed `scripts/seed_preview_events_time_slots.py`; `delete_player()` now cascades to slots). Steps 2-3 done: every page now reads/writes the `event` and `time_slot` tables (`events`, `dashboard`, `timeslots` with the Status column/filter, confirmed_ind rules, end-minus-one-second times and overlap handling, `search`, and the Players page slot counts via one grouped query). Remaining: step 4 cleanup (delete `sample_data.events`/`time_slots`, `SampleEvent`/`SampleTimeSlot`, and the now-unused `next_id`/comments), then Greg's planned removal of `scheduled_start`/`scheduled_end`/`is_published` from `event` and the UI (needs another fresh DB). Then the last `sample_data` consumer is `admin.py`'s Time Zones panel (fix it and delete `sample_data.py` + the stale-id cleanup - ask Greg first). |
 
 Consequences to keep in mind:
 - `player.alliance_id` is now a real FK to `alliance`, and `app/db.py` turns on `PRAGMA foreign_keys` for every connection,
@@ -102,12 +102,13 @@ Consequences to keep in mind:
   table (`trg_time_slot_no_overlap_insert/update`), because SQLite has no exclusion constraints. They raise an IntegrityError
   that `app/data/time_slots.py` turns into `TimeSlotOverlapError` (catch it in the Add/Edit dialogs and show a message).
   Use an exclusion constraint if this ever moves to PostgreSQL.
-- **`confirmed_ind` UI rules (to implement in step 3):** the OWNING account (also when that account is a SchedulerAdmin/
+- **`confirmed_ind` UI rules (implemented in `timeslots.py`):** the OWNING account (also when that account is a SchedulerAdmin/
   SuperAdmin editing their own slot): True -> read-only "Status: confirmed"; False -> "Please confirm" checkbox (unchecked),
   checking it and saving sets True; the owner can never set False. SchedulerAdmin/SuperAdmin editing someone else's slot:
   True -> "Request confirmation" toggle (default No), Yes + save sets False; False -> read-only "Status: unconfirmed"; they can
   never set True. The Add dialog only shows a read-only "Status: Confirmed" for everyone. The table column is "Status"
-  (check mark = True, x = False), and the filter is "Status" with "OK" (True) / "Needs Confirmation" (False).
+  (check mark = True, x = False), and the filter is "Status" with "OK" (True) / "Needs Confirmation" (False). The table shows
+  the picked end in 24h (midnight = `24:00`), the details view in 12h (`12:00 AM (midnight)`); helpers live in `app/utils/slot_times.py`.
 - **SQLite now, PostgreSQL possibly later** (per requirements), which is why SQLModel/SQLAlchemy and no raw SQLite-only SQL.
 - **Idea under discussion, not decided:** removing `role_switcher.py` in favor of real login/logout via Discord OAuth
   (look up account by `discord_user_id`, store `account_id` in `app.storage.user`; role derived from

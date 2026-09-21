@@ -6,7 +6,7 @@ from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
 from app.data import events as events_repo
 from app.data import players as players_repo
-from app.models.sample_data import time_slots
+from app.data import time_slots as time_slots_repo
 
 
 @ui.page("/dashboard")
@@ -21,7 +21,7 @@ async def dashboard_page() -> None:
         with ui.row().classes("w-full gap-4"):
             _stat_card("Accounts", account_count, "badge")
             _stat_card("Players", len(await players_repo.list_players()), "groups")
-            _stat_card("Open Time Slots", len(time_slots), "schedule")
+            _stat_card("Open Time Slots", len(await time_slots_repo.list_time_slots()), "schedule")
             _stat_card("Events", len(events), "event")
 
         with ui.card().classes("w-full"):

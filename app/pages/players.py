@@ -25,7 +25,7 @@ from app.data import accounts as accounts_repo
 from app.data import alliances as alliances_repo
 from app.data import kingdoms as kingdoms_repo
 from app.data import players as players_repo
-from app.models.sample_data import time_slots
+from app.data import time_slots as time_slots_repo
 from app.models.schema import Account, AccountType, Alliance, Kingdom, Player, Role, TOWN_CENTER_LEVELS
 from app.pages.account_player import (
     _admin_alliance_ids,
@@ -287,6 +287,7 @@ def _player_rows(
     roles_by_id: dict[int, list[Role]] | None,
     kingdoms: list[Kingdom],
     alliances: list[Alliance],
+    slot_count_by_player_id: dict[int, int],
 ) -> list[dict]:
     """Builds one display-ready dict per player (avatar url, resolved kingdom/
     alliance names, formatted power, etc.) - shared by every player card so
@@ -295,10 +296,6 @@ def _player_rows(
     """
     alliance_by_id = {a.alliance_id: a for a in alliances}
     kingdom_name_by_id = {k.kingdom_id: k.name for k in kingdoms}
-    slot_count_by_player_id: dict[int, int] = {}
-    for slot in time_slots:
-        slot_count_by_player_id[slot.player_id] = slot_count_by_player_id.get(slot.player_id, 0) + 1
-
     result = []
     for p in rows:
         account = account_by_id.get(p.account_id)
@@ -460,6 +457,7 @@ async def player_table() -> None:
 
     account_by_id = {a.account_id: a for a in await accounts_repo.list_accounts()}
     roles_by_id = await players_repo.roles_by_player_id([p.player_id for p in visible]) if show_roles else None
+    slot_count_by_player_id = await time_slots_repo.count_time_slots_by_player([p.player_id for p in visible])
     for account in page_accounts:
         account_players = _account_players(visible, alliances, account.account_id)
         account_rows = list(zip(
@@ -467,6 +465,7 @@ async def player_table() -> None:
             _player_rows(
                 account_players,
                 account_by_id=account_by_id, roles_by_id=roles_by_id, kingdoms=kingdoms, alliances=alliances,
+                slot_count_by_player_id=slot_count_by_player_id,
             ),
         ))
         _render_account_card(account, account_rows, show_roles=show_roles)

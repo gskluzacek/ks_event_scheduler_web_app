@@ -6,8 +6,9 @@ from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
 from app.data import alliances as alliances_repo
 from app.data import players as players_repo
-from app.models.sample_data import time_slots
+from app.data import time_slots as time_slots_repo
 from app.models.schema import Player, Role
+from app.utils.slot_times import format_end_24h
 
 
 @ui.page("/search")
@@ -28,7 +29,7 @@ async def search_page() -> None:
             with results:
                 await _render_accounts(term, elevated)
                 _render_players(all_players, alliance_name_by_id, term, elevated)
-                _render_slots(all_players, term)
+                await _render_slots(all_players, term)
 
         query.on_value_change(run_search)
         await run_search()
@@ -65,13 +66,14 @@ def _render_players(
             ui.label(label)
 
 
-def _render_slots(all_players: list[Player], term: str) -> None:
+async def _render_slots(all_players: list[Player], term: str) -> None:
     if not term:
         return
-    matches = [s for p in all_players if term in p.kingshot_name.lower() for s in time_slots if s.player_id == p.player_id]
+    matching_player_ids = [p.player_id for p in all_players if term in p.kingshot_name.lower()]
+    matches = await time_slots_repo.list_time_slots(player_ids=matching_player_ids)
     if not matches:
         return
     with ui.card().classes("w-full"):
         ui.label("Time Slots").classes("font-semibold")
         for s in matches:
-            ui.label(f"{s.local_start.strftime('%H:%M')} - {s.local_end.strftime('%H:%M')} ({s.time_slot_type.value})")
+            ui.label(f"{s.start_time.strftime('%H:%M')} - {format_end_24h(s.end_time)} ({s.tslot_type.value})")
