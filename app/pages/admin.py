@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from nicegui import ui
+from sqlalchemy.exc import IntegrityError
 
 from app.components import layout, role_switcher
-from app.models.sample_data import alliances, kingdoms, time_zones
-from app.models.schema import Role, TimeZone, next_id
-# Transitional in-memory versions - this page migrates to the kingdom/alliance tables in a later step.
-from app.models.schema import SampleAlliance as Alliance, SampleKingdom as Kingdom
+from app.data import alliances as alliances_repo
+from app.data import kingdoms as kingdoms_repo
+from app.models.sample_data import time_zones
+from app.models.schema import Kingdom, Role, TimeZone, next_id
 
 
 @ui.page("/admin")
@@ -24,13 +25,15 @@ async def admin_page() -> None:
             tz_tab = ui.tab("Time Zones")
         with ui.tab_panels(tabs, value=kingdoms_tab).classes("w-full"):
             with ui.tab_panel(kingdoms_tab):
-                kingdom_alliance_panel()
+                await kingdom_alliance_panel()
             with ui.tab_panel(tz_tab):
                 timezone_panel()
 
 
 @ui.refreshable
-def kingdom_alliance_panel() -> None:
+async def kingdom_alliance_panel() -> None:
+    kingdoms = await kingdoms_repo.list_kingdoms()
+    alliances = await alliances_repo.list_alliances()
     ui.button("Add Kingdom", icon="add", on_click=_open_add_kingdom).props("outlined")
     for kingdom in kingdoms:
         with ui.card().classes("w-full"):
@@ -38,7 +41,7 @@ def kingdom_alliance_panel() -> None:
                 ui.label(kingdom.name).classes("font-semibold")
                 ui.button("Add Alliance", icon="add",
                            on_click=lambda k=kingdom: _open_add_alliance(k)).props("dense outlined")
-            for alliance in [a for a in alliances if a.kingdom_id == kingdom.id]:
+            for alliance in [a for a in alliances if a.kingdom_id == kingdom.kingdom_id]:
                 with ui.row().classes("items-center gap-4 pl-4"):
                     ui.icon("shield").classes("text-grey-6")
                     ui.label(alliance.name)
@@ -87,10 +90,16 @@ def _open_add_kingdom() -> None:
         ui.label("Add Kingdom").classes("font-bold")
         name = ui.input("Kingdom Name").props("outlined")
 
-        def submit() -> None:
-            if not name.value:
+        async def submit() -> None:
+            if not (name.value and name.value.strip()):
                 return
-            kingdoms.append(Kingdom(id=next_id(), name=name.value))
+            try:
+                await kingdoms_repo.create_kingdom(
+                    name=name.value.strip(), create_account_id=role_switcher.current_account_id()
+                )
+            except IntegrityError:
+                ui.notify(f"A kingdom named {name.value.strip()!r} already exists.", type="warning")
+                return
             dialog.close()
             kingdom_alliance_panel.refresh()
 
@@ -107,13 +116,25 @@ def _open_add_alliance(kingdom: Kingdom) -> None:
         guild_id = ui.input("Discord Guild ID").props("outlined")
         guild_name = ui.input("Discord Guild Name").props("outlined")
 
-        def submit() -> None:
-            if not (name.value and guild_id.value):
+        async def submit() -> None:
+            if not (name.value and name.value.strip() and guild_id.value and guild_id.value.strip()):
                 return
-            alliances.append(Alliance(
-                id=next_id(), name=name.value, kingdom_id=kingdom.id,
-                discord_guild_id=guild_id.value, discord_guild_name=guild_name.value or name.value,
-            ))
+            try:
+                await alliances_repo.create_alliance(
+                    kingdom_id=kingdom.kingdom_id,
+                    name=name.value.strip(),
+                    discord_guild_id=guild_id.value.strip(),
+                    discord_guild_name=(guild_name.value or "").strip() or name.value.strip(),
+                    create_account_id=role_switcher.current_account_id(),
+                )
+            except IntegrityError as e:
+                # The table's UNIQUE constraints are the source of truth (one guild per alliance,
+                # alliance names unique within a kingdom); this just turns the failure into a message.
+                if "discord_guild_id" in str(e.orig):
+                    ui.notify("That Discord guild already belongs to another alliance.", type="warning")
+                else:
+                    ui.notify(f"{kingdom.name} already has an alliance named {name.value.strip()!r}.", type="warning")
+                return
             dialog.close()
             kingdom_alliance_panel.refresh()
 

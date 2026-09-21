@@ -5,7 +5,8 @@ from datetime import date, datetime
 from nicegui import ui
 
 from app.components import layout, role_switcher
-from app.models.sample_data import alliances, events
+from app.data import alliances as alliances_repo
+from app.models.sample_data import events
 from app.models.schema import Event, Role, next_id
 
 
@@ -19,14 +20,15 @@ async def events_page() -> None:
             if can_manage:
                 ui.button("Create Event", icon="add", on_click=_open_add_dialog) \
                     .props("unelevated color=primary")
-        event_list()
+        await event_list()
 
 
 @ui.refreshable
-def event_list() -> None:
+async def event_list() -> None:
     can_manage = role_switcher.is_at_least(Role.SCHEDULER_ADMIN, Role.POWER_ADMIN)
+    alliance_name_by_id = {a.alliance_id: a.name for a in await alliances_repo.list_alliances()}
     for event in events:
-        alliance = next((a.name for a in alliances if a.id == event.alliance_id), "?")
+        alliance = alliance_name_by_id.get(event.alliance_id, "?")
         with ui.card().classes("w-full"):
             with ui.row().classes("w-full items-center justify-between"):
                 with ui.column().classes("gap-0"):
@@ -59,13 +61,14 @@ def _toggle_publish(event: Event) -> None:
     event_list.refresh()
 
 
-def _open_add_dialog() -> None:
+async def _open_add_dialog() -> None:
+    alliances = await alliances_repo.list_alliances()
     with ui.dialog() as dialog, ui.card().classes("w-96"):
         ui.label("Create Event").classes("text-lg font-bold")
         name = ui.input("Name").props("outlined").classes("w-full")
         description = ui.textarea("Description").props("outlined").classes("w-full")
         alliance_select = ui.select(
-            {a.id: a.name for a in alliances}, label="Alliance"
+            {a.alliance_id: a.name for a in alliances}, label="Alliance"
         ).props("outlined").classes("w-full")
         # ui.date() has no `label` kwarg (that crashed) - use a caption label above it instead.
         with ui.row().classes("w-full gap-2"):
