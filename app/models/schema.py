@@ -5,9 +5,7 @@ app/db.py and app/data/ for the SQLModel/repository side of that migration.
 
 TimeZone, Account, Player, PlayerRole, Kingdom and Alliance are real `SQLModel` tables now.
 TimeSlot and Event are still plain dataclasses in module-level lists
-(app/models/sample_data.py) until their turn comes (SampleKingdom/SampleAlliance
-are the transitional in-memory versions of Kingdom/Alliance, used only until
-their pages migrate); Module-level state is
+(app/models/sample_data.py) until their turn comes; Module-level state is
 normally an anti-pattern in NiceGUI (shared across all users - see
 nicegui_llms.md Mental Model #2), but for this mock every "user" is really
 just us previewing roles, so a shared in-memory store is fine and even
@@ -103,10 +101,6 @@ class Kingdom(SQLModel, table=True):
     update_account_id: int | None = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    @property
-    def id(self) -> int | None:  # transitional alias - see module docstring
-        return self.kingdom_id
-
 
 class Alliance(SQLModel, table=True):
     """Belongs to exactly one kingdom and has exactly one Discord guild (per
@@ -126,27 +120,6 @@ class Alliance(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     update_account_id: int | None = None
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    @property
-    def id(self) -> int | None:  # transitional alias - see module docstring
-        return self.alliance_id
-
-
-# Transitional in-memory versions, deleted along with sample_data's kingdoms/alliances
-# once the last page reading those lists has migrated.
-@dataclass
-class SampleKingdom:
-    id: int
-    name: str
-
-
-@dataclass
-class SampleAlliance:
-    id: int
-    name: str
-    kingdom_id: int
-    discord_guild_id: str
-    discord_guild_name: str
 
 
 class Account(SQLModel, table=True):

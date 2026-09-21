@@ -5,8 +5,9 @@ SQLite migration).
 Run this BEFORE scripts/seed_preview_players.py: `player.alliance_id` is a real
 (enforced) foreign key to `alliance`, so the players can't be inserted until the
 alliances they belong to exist. scripts/preview_kingdoms_alliances.yaml holds the
-two kingdoms and six alliances with fixed ids (4001-4002 and 2001-2006) that match
-app/models/sample_data.py, which still feeds the pages that haven't migrated yet.
+two kingdoms and six alliances with fixed ids (4001-4002 and 2001-2006), which
+scripts/preview_players.yaml and the in-memory events in app/models/sample_data.py
+refer to.
 
 Safe to run more than once - skips any kingdom_id / alliance_id already present.
 

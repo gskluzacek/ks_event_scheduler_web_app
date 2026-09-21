@@ -38,8 +38,8 @@ SQLite via SQLModel. The DB file is `kingshot.db` at the repo root (git-ignored,
 | 1-2 | `time_zone`, `account` groundwork + first-run setup wizard (`/setup`) | done |
 | 3 | `account` | done |
 | 4 | `player`, `player_role` | done (latest commits) |
-| 5 | `kingdom`, `alliance` | **in progress.** Steps 1-4 done (tables, repos, seed, enforced FKs; `players`, `timeslots`, `search`, `events` and the `admin` Kingdoms & Alliances panel all read/write the DB). Remaining: step 5 cleanup, i.e. delete `sample_data.kingdoms`/`alliances` and `SampleKingdom`/`SampleAlliance` (only `sample_data`'s own events still reference the pinned alliance ids). |
-| next | `time_slot`, `event` | **still in-memory dataclasses** in `app/models/schema.py` + lists in `app/models/sample_data.py` |
+| 5 | `kingdom`, `alliance` | done (tables, repos, seed, enforced FKs; every page reads/writes the DB; the in-memory kingdom/alliance lists and `SampleKingdom`/`SampleAlliance` are gone; in-memory events reference the pinned alliance ids via named constants) |
+| next | `time_slot`, `event` (also the last `sample_data` consumers, plus `time_zone` in `admin.py`'s Time Zones panel) | **still in-memory dataclasses** in `app/models/schema.py` + lists in `app/models/sample_data.py` |
 
 Consequences to keep in mind:
 - `player.alliance_id` is now a real FK to `alliance`, and `app/db.py` turns on `PRAGMA foreign_keys` for every connection,
@@ -47,8 +47,8 @@ Consequences to keep in mind:
 - `discord_guild_id` is UNIQUE per alliance (one guild per alliance, per the requirements), so only seeded alliance 2001 has
   the real test guild; 2002-2006 use fake guild ids and guild verification against them is expected to fail.
 - Time slots are in memory, so `delete_player()` can't cascade to them (orphans). Resolves when `time_slot` migrates.
-- Pages still importing `sample_data`: dashboard, events, timeslots, search, players (for the still-in-memory events/time
-  slots only) and admin (its Time Zones panel). Don't assume a page is DB-backed without checking. Also, `admin.py`'s Time Zones panel still reads the in-memory
+- `sample_data.py` now holds only `time_zones` (used just by `admin.py`'s Time Zones panel), `events` and `time_slots`;
+  dashboard, events, timeslots, search and players import it for the still-in-memory events/time slots. Don't assume a page is DB-backed without checking. Also, `admin.py`'s Time Zones panel still reads the in-memory
   `sample_data.time_zones` although `time_zone` is a real table (known gap, deliberately out of scope for now).
 - Migrated tables use descriptive PKs (`account_id`, `player_id`, `timezone_id`), not `id`. They keep a read-only `.id`
   property alias so unmigrated page code still works; delete the alias and fix call sites when that page migrates.
@@ -94,8 +94,8 @@ Consequences to keep in mind:
 
 ### Preview data and fresh-DB recipe
 Pinned ids matter because unmigrated data references them: preview accounts 1001-1005, kingdoms 4001-4002, alliances
-2001-2006 (`scripts/preview_kingdoms_alliances.yaml`, mirrored by `sample_data.py` until the pages migrate - keep the two in
-sync), players 3001-3012 (`scripts/preview_players.yaml`), and the in-memory time slots reference player ids through named
+2001-2006 (`scripts/preview_kingdoms_alliances.yaml`; the in-memory events name alliances 2001/2002 via constants in
+`sample_data.py`), players 3001-3012 (`scripts/preview_players.yaml`), and the in-memory time slots reference player ids through named
 constants in `sample_data.py`. On a fresh DB: run the app, complete `/setup`, then `seed_preview_accounts`, then
 `seed_preview_kingdoms_alliances`, then `seed_preview_players` (that order; the players FK needs both). Otherwise time slots
 point at players that don't exist. Delete `kingshot.db` first if it predates the kingdom/alliance tables, since `create_all`

@@ -10,10 +10,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 
-from app.models.schema import (
-    Event, SampleAlliance, SampleKingdom, TimeSlot,
-    TimeSlotType, TimeZone, next_id,
-)
+from app.models.schema import Event, TimeSlot, TimeSlotType, TimeZone, next_id
 
 time_zones: list[TimeZone] = [
     TimeZone(timezone_id=next_id(), region="America", location="New_York"),
@@ -25,71 +22,13 @@ time_zones: list[TimeZone] = [
     TimeZone(timezone_id=next_id(), region="Australia", location="Sydney"),
 ]
 
-# Kingdom ids are pinned literals (4001-4002) for the same reason as the alliance ids below:
-# the `kingdom` and `alliance` tables are seeded (scripts/seed_preview_kingdoms_alliances.py)
-# from scripts/preview_kingdoms_alliances.yaml with these same ids - keep the two in sync.
-kingdoms: list[SampleKingdom] = [
-    SampleKingdom(4001, "#1542"),
-    SampleKingdom(4002, "#1467"),
-]
-
-# Alliance ids are pinned literals (2001-2006), not next_id(): the `player` table's
-# alliance_id is a real FK to the seeded `alliance` table, so scripts/preview_players.yaml
-# refers to them by these fixed values. Same trick as account_id 1001-1005.
-# Only the FIRST alliance (2001) has a real guild - Greg's corn-bot-1 is already a member, so it
-# exercises the actual bot-token guild-membership check end to end (see auth/discord_guild.py).
-# The other five use obviously-fake guild ids, because discord_guild_id is UNIQUE in the
-# `alliance` table (one guild per alliance) - verification against them is expected to fail,
-# which doubles as the negative test. Keep in sync with scripts/preview_kingdoms_alliances.yaml.
-alliances: list[SampleAlliance] = [
-    SampleAlliance(
-        id=2001,            # index 0
-        name="[SHD] Shadow Stooges",
-        kingdom_id=kingdoms[0].id,
-        discord_guild_id="1517613215138189444",
-        discord_guild_name="Dark Lords of the Shadow Realm"
-    ),
-    SampleAlliance(
-        id=2002,            # index 1
-        name="[PHX] Dark Phoenix Rising",
-        kingdom_id=kingdoms[0].id,
-        discord_guild_id="900000000000002002",
-        discord_guild_name="Mister Mojo Risin'"
-    ),
-    SampleAlliance(
-        id=2003,            # index 2
-        name="[UFC] Ultimate Fighting Clan",
-        kingdom_id=kingdoms[1].id,
-        discord_guild_id="900000000000002003",
-        discord_guild_name="Drink Clamoto Juice and Live!"
-    ),
-    SampleAlliance(
-        id=2004,            # index 3
-        name="[UMP] Umbra Pickles",
-        kingdom_id=kingdoms[1].id,
-        discord_guild_id="900000000000002004",
-        discord_guild_name="NOT Magic: The Gathering"
-    ),
-    SampleAlliance(
-        id=2005,            # index 4
-        name="[sOS] Hospitable Canteen",
-        kingdom_id=kingdoms[1].id,
-        discord_guild_id="900000000000002005",
-        discord_guild_name="Same Old Shit"
-    ),
-    SampleAlliance(
-        id=2006,            # index 5
-        name="[STN] Silent Thunder and Nonsense",
-        kingdom_id=kingdoms[1].id,
-        discord_guild_id="900000000000002006",
-        discord_guild_name="Silent But Not So Deadly"
-    ),
-]
-
-# Account and Player are real SQLite tables now (app/data/accounts.py, app/data/players.py).
-# The time slots below still live here in memory, so they refer to their players by the
-# fixed player_id values that scripts/preview_players.yaml seeds (run
-# scripts.seed_preview_accounts, then scripts.seed_preview_players, on a fresh DB).
+# Kingdom, Alliance, Account and Player are real SQLite tables now (app/data/). The events and
+# time slots below still live here in memory, so they refer to alliances and players by the
+# fixed ids that the seed scripts insert (run, in order, on a fresh DB:
+# scripts.seed_preview_accounts, scripts.seed_preview_kingdoms_alliances, scripts.seed_preview_players).
+_ALLIANCE_ID_SHD = 2001  # [SHD] Shadow Stooges - scripts/preview_kingdoms_alliances.yaml
+_ALLIANCE_ID_PHX = 2002  # [PHX] Dark Phoenix Rising
+# Player ids (scripts/preview_players.yaml) that the time slots below belong to.
 _PLAYER_ID_DARK_CHOCOLATE = 3001
 _PLAYER_ID_MILK_CHOCOLATE = 3002
 _PLAYER_ID_MINT_CHOCOLATE = 3003
@@ -101,7 +40,7 @@ _PLAYER_ID_SCHRODINGERS_CAT = 3012
 events: list[Event] = [
     Event(
         id=next_id(),
-        alliance_id=alliances[0].id,
+        alliance_id=_ALLIANCE_ID_SHD,
         name="[BT] Bear Hunt",
         description="EOD bear trap",
         begin_date=date.today() - timedelta(days=28),
@@ -111,7 +50,7 @@ events: list[Event] = [
     ),
     Event(
         id=next_id(),
-        alliance_id=alliances[0].id,
+        alliance_id=_ALLIANCE_ID_SHD,
         name="[KvK] Kingdom vs Kingdom",
         description="Cross-kingdom war window",
         begin_date=date.today() + timedelta(days=1),
@@ -120,7 +59,7 @@ events: list[Event] = [
     ),
     Event(
         id=next_id(),
-        alliance_id=alliances[1].id,
+        alliance_id=_ALLIANCE_ID_PHX,
         name="[CB] Castle Battle",
         description="Alliance castle defense",
         begin_date=date.today(),
@@ -128,7 +67,7 @@ events: list[Event] = [
     ),
     Event(
         id=next_id(),
-        alliance_id=alliances[1].id,
+        alliance_id=_ALLIANCE_ID_PHX,
         name="[SS] Swordland Showdown",
         description="Win the ancient Sword of Kings and rule the realm",
         begin_date=date.today(),
@@ -136,7 +75,7 @@ events: list[Event] = [
     ),
     Event(
         id=next_id(),
-        alliance_id=alliances[1].id,
+        alliance_id=_ALLIANCE_ID_PHX,
         name="[TAC] Tri-Alliance Clash",
         description="Maritime battle for the Temple Of Tides",
         begin_date=date.today(),
@@ -144,7 +83,7 @@ events: list[Event] = [
     ),
     Event(
         id=next_id(),
-        alliance_id=alliances[1].id,
+        alliance_id=_ALLIANCE_ID_PHX,
         name="[ACh] Alliance Championship",
         description="Three lane round-robin 5 round tournament",
         begin_date=date.today(),
@@ -152,7 +91,7 @@ events: list[Event] = [
     ),
     Event(
         id=next_id(),
-        alliance_id=alliances[1].id,
+        alliance_id=_ALLIANCE_ID_PHX,
         name="[SncB] Sanctuary Battle",
         description="Defeat the Cesares Rebels in the Sanctuary",
         begin_date=date.today(),
