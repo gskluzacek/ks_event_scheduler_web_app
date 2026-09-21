@@ -22,9 +22,11 @@ from nicegui import app, ui
 from app.auth.discord_guild import MembershipResult, build_guild_avatar_url, verify_guild_membership
 from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
+from app.data import alliances as alliances_repo
+from app.data import kingdoms as kingdoms_repo
 from app.data import players as players_repo
-from app.models.sample_data import alliances, kingdoms, time_slots
-from app.models.schema import Account, AccountType, Player, Role, TOWN_CENTER_LEVELS
+from app.models.sample_data import time_slots
+from app.models.schema import Account, AccountType, Alliance, Kingdom, Player, Role, TOWN_CENTER_LEVELS
 from app.pages.account_player import (
     _admin_alliance_ids,
     _can_edit_account,
@@ -80,31 +82,34 @@ def _can_edit_player(player: Player) -> bool:
     )
 
 
-def _kingdom_ids_from_players(rows: list[Player]) -> set[int]:
+def _kingdom_ids_from_players(rows: list[Player], alliances: list[Alliance]) -> set[int]:
     alliance_ids = {p.alliance_id for p in rows}
-    return {a.kingdom_id for a in alliances if a.id in alliance_ids}
+    return {a.kingdom_id for a in alliances if a.alliance_id in alliance_ids}
 
 
-def _narrow(rows: list[Player], *, kingdom_id: int | None = None, alliance_id: int | None = None) -> list[Player]:
-    """`rows` narrowed by whichever of kingdom/alliance are given. Used to
+def _narrow(
+    rows: list[Player], alliances: list[Alliance], *, kingdom_id: int | None = None, alliance_id: int | None = None
+) -> list[Player]:
+    """`rows` narrowed by whichever of kingdom/alliance are given (`alliances` is
+    the full alliance table, fetched once by the caller). Used to
     compute each filter dropdown's options from the *other* active filter, so
     Kingdom/Alliance stay mutually consistent no matter which one you touch first.
     """
     if kingdom_id is not None:
-        alliance_ids_in_kingdom = {a.id for a in alliances if a.kingdom_id == kingdom_id}
+        alliance_ids_in_kingdom = {a.alliance_id for a in alliances if a.kingdom_id == kingdom_id}
         rows = [p for p in rows if p.alliance_id in alliance_ids_in_kingdom]
     if alliance_id is not None:
         rows = [p for p in rows if p.alliance_id == alliance_id]
     return rows
 
 
-def _active_filters(visible: list[Player]) -> tuple[int | None, int | None]:
+def _active_filters(visible: list[Player], alliances: list[Alliance]) -> tuple[int | None, int | None]:
     """The stored (kingdom_id, alliance_id) filter values, each dropped to None
     unless it still matches a player this viewer can see - keeps the dropdowns
     from offering (or holding) choices with zero results.
     """
     return (
-        get_id_filter(FILTER_KINGDOM_KEY, _kingdom_ids_from_players(visible)),
+        get_id_filter(FILTER_KINGDOM_KEY, _kingdom_ids_from_players(visible, alliances)),
         get_id_filter(FILTER_ALLIANCE_KEY, {p.alliance_id for p in visible}),
     )
 
@@ -115,15 +120,16 @@ async def _reconcile_filters() -> None:
     you just touched.
     """
     visible = await _visible_players()
-    kingdom_id, alliance_id = _active_filters(visible)
+    alliances = await alliances_repo.list_alliances()
+    kingdom_id, alliance_id = _active_filters(visible, alliances)
 
     if alliance_id is not None:
-        valid = {p.alliance_id for p in _narrow(visible, kingdom_id=kingdom_id)}
+        valid = {p.alliance_id for p in _narrow(visible, alliances, kingdom_id=kingdom_id)}
         if alliance_id not in valid:
             set_filter(FILTER_ALLIANCE_KEY, None)
             alliance_id = None
     if kingdom_id is not None:
-        valid = _kingdom_ids_from_players(_narrow(visible, alliance_id=alliance_id))
+        valid = _kingdom_ids_from_players(_narrow(visible, alliances, alliance_id=alliance_id), alliances)
         if kingdom_id not in valid:
             set_filter(FILTER_KINGDOM_KEY, None)
 
@@ -137,7 +143,7 @@ def _clear_player_filters() -> None:
     player_table.refresh()
 
 
-async def _filtered_accounts(visible: list[Player]) -> list[Account]:
+async def _filtered_accounts(visible: list[Player], alliances: list[Alliance]) -> list[Account]:
     """Accounts visible to this viewer (account_player._visible_accounts()),
     narrowed by the Kingdom/Alliance filters (via each account's *visible*
     players - so Admin/PowerAdmin can't use these to find alliances outside
@@ -150,9 +156,11 @@ async def _filtered_accounts(visible: list[Player]) -> list[Account]:
     """
     rows = await _visible_accounts()
 
-    kingdom_id, alliance_id = _active_filters(visible)
+    kingdom_id, alliance_id = _active_filters(visible, alliances)
     if kingdom_id is not None or alliance_id is not None:
-        matching_account_ids = {p.account_id for p in _narrow(visible, kingdom_id=kingdom_id, alliance_id=alliance_id)}
+        matching_account_ids = {
+            p.account_id for p in _narrow(visible, alliances, kingdom_id=kingdom_id, alliance_id=alliance_id)
+        }
         rows = [a for a in rows if a.account_id in matching_account_ids]
 
     account_name = get_text_filter(FILTER_ACCOUNT_NAME_KEY).strip().lower()
@@ -165,14 +173,16 @@ async def _filtered_accounts(visible: list[Player]) -> list[Account]:
     return rows
 
 
-def _account_players(visible: list[Player], account_id: int) -> list[Player]:
+def _account_players(visible: list[Player], alliances: list[Alliance], account_id: int) -> list[Player]:
     """This viewer's visible players belonging to `account_id`, further
     narrowed by the active Kingdom/Alliance/Kingshot-Name filters - i.e. which
     of that account's players actually show up inside its (possibly expanded)
     card.
     """
-    kingdom_id, alliance_id = _active_filters(visible)
-    rows = _narrow([p for p in visible if p.account_id == account_id], kingdom_id=kingdom_id, alliance_id=alliance_id)
+    kingdom_id, alliance_id = _active_filters(visible, alliances)
+    rows = _narrow(
+        [p for p in visible if p.account_id == account_id], alliances, kingdom_id=kingdom_id, alliance_id=alliance_id
+    )
 
     name = get_text_filter(FILTER_NAME_KEY).strip().lower()
     if name:
@@ -201,8 +211,10 @@ async def players_page() -> None:
 @ui.refreshable
 async def player_filters() -> None:
     visible = await _visible_players()
+    kingdoms = await kingdoms_repo.list_kingdoms()
+    alliances = await alliances_repo.list_alliances()
     show_account_name = role_switcher.is_at_least(Role.ADMIN, Role.POWER_ADMIN)
-    kingdom_id, alliance_id = _active_filters(visible)
+    kingdom_id, alliance_id = _active_filters(visible, alliances)
     account_name = get_text_filter(FILTER_ACCOUNT_NAME_KEY) if show_account_name else ""
     name = get_text_filter(FILTER_NAME_KEY)
 
@@ -210,17 +222,17 @@ async def player_filters() -> None:
     # selecting either of Kingdom/Alliance narrows the other in both directions.
     # Name search is deliberately left out of this so these options don't shift
     # under you while typing.
-    kingdom_option_ids = _kingdom_ids_from_players(_narrow(visible, alliance_id=alliance_id))
-    alliance_option_ids = {p.alliance_id for p in _narrow(visible, kingdom_id=kingdom_id)}
+    kingdom_option_ids = _kingdom_ids_from_players(_narrow(visible, alliances, alliance_id=alliance_id), alliances)
+    alliance_option_ids = {p.alliance_id for p in _narrow(visible, alliances, kingdom_id=kingdom_id)}
 
     with ui.row().classes("w-full items-end gap-2"):
         # Order: Kingdom, Alliance, Account Name, Kingshot Name - coarse-to-fine.
-        kingdom_options = {k.id: k.name for k in kingdoms if k.id in kingdom_option_ids}
+        kingdom_options = {k.kingdom_id: k.name for k in kingdoms if k.kingdom_id in kingdom_option_ids}
         kingdom_select = ui.select(
             kingdom_options, label="Kingdom", value=kingdom_id,
         ).props("outlined dense clearable").classes("w-48")
 
-        alliance_options = {a.id: a.name for a in alliances if a.id in alliance_option_ids}
+        alliance_options = {a.alliance_id: a.name for a in alliances if a.alliance_id in alliance_option_ids}
         alliance_select = ui.select(
             alliance_options, label="Alliance", value=alliance_id,
         ).props("outlined dense clearable").classes("w-48")
@@ -269,15 +281,20 @@ async def player_filters() -> None:
 
 
 def _player_rows(
-    rows: list[Player], *, account_by_id: dict[int, Account], roles_by_id: dict[int, list[Role]] | None
+    rows: list[Player],
+    *,
+    account_by_id: dict[int, Account],
+    roles_by_id: dict[int, list[Role]] | None,
+    kingdoms: list[Kingdom],
+    alliances: list[Alliance],
 ) -> list[dict]:
     """Builds one display-ready dict per player (avatar url, resolved kingdom/
     alliance names, formatted power, etc.) - shared by every player card so
     the field set/formatting is defined exactly once. `roles_by_id=None` means
     the viewer can't see roles, so the \"roles\" key is left out.
     """
-    alliance_by_id = {a.id: a for a in alliances}
-    kingdom_name_by_id = {k.id: k.name for k in kingdoms}
+    alliance_by_id = {a.alliance_id: a for a in alliances}
+    kingdom_name_by_id = {k.kingdom_id: k.name for k in kingdoms}
     slot_count_by_player_id: dict[int, int] = {}
     for slot in time_slots:
         slot_count_by_player_id[slot.player_id] = slot_count_by_player_id.get(slot.player_id, 0) + 1
@@ -422,7 +439,9 @@ async def player_table() -> None:
     # web_app_requirements.md > Account Management #3) - hidden for other roles.
     show_roles = role_switcher.is_at_least(Role.POWER_ADMIN)
     visible = await _visible_players()
-    filtered_accounts = await _filtered_accounts(visible)
+    kingdoms = await kingdoms_repo.list_kingdoms()
+    alliances = await alliances_repo.list_alliances()
+    filtered_accounts = await _filtered_accounts(visible, alliances)
 
     if not filtered_accounts:
         if await _visible_accounts():
@@ -442,9 +461,13 @@ async def player_table() -> None:
     account_by_id = {a.account_id: a for a in await accounts_repo.list_accounts()}
     roles_by_id = await players_repo.roles_by_player_id([p.player_id for p in visible]) if show_roles else None
     for account in page_accounts:
-        account_players = _account_players(visible, account.account_id)
+        account_players = _account_players(visible, alliances, account.account_id)
         account_rows = list(zip(
-            account_players, _player_rows(account_players, account_by_id=account_by_id, roles_by_id=roles_by_id)
+            account_players,
+            _player_rows(
+                account_players,
+                account_by_id=account_by_id, roles_by_id=roles_by_id, kingdoms=kingdoms, alliances=alliances,
+            ),
         ))
         _render_account_card(account, account_rows, show_roles=show_roles)
 
@@ -470,8 +493,9 @@ async def _render_player_details(player_id: int) -> None:
         return
     roles = (await players_repo.roles_by_player_id([player_id])).get(player_id, [])
     account = await accounts_repo.get_account(player.account_id)
-    alliance = next((a for a in alliances if a.id == player.alliance_id), None)
-    kingdom_name = next((k.name for k in kingdoms if alliance and k.id == alliance.kingdom_id), "?")
+    alliance = await alliances_repo.get_alliance(player.alliance_id)
+    kingdom = await kingdoms_repo.get_kingdom(alliance.kingdom_id) if alliance else None
+    kingdom_name = kingdom.name if kingdom else "?"
     avatar_url = player.discord_guild_avatar_url or (account.discord_avatar_url if account else None)
 
     with ui.row().classes("items-center gap-3 w-full"):
@@ -534,7 +558,7 @@ async def _do_discord_player_sync(player: Player, status_label: ui.label, on_upd
     the user. `on_updated` refreshes just the dialog's own detail-view section.
     """
     account = await accounts_repo.get_account(player.account_id)
-    alliance = next((a for a in alliances if a.id == player.alliance_id), None)
+    alliance = await alliances_repo.get_alliance(player.alliance_id)
     if account is None or account.account_type != AccountType.DISCORD_USER:
         ui.notify("This player's account has no Discord identity to sync from.", type="warning")
         return
@@ -692,14 +716,23 @@ async def _open_add_player_dialog(account: Account) -> None:
     if role_switcher.current_role() in (Role.ADMIN, Role.POWER_ADMIN):
         allowed_alliance_ids = await _admin_alliance_ids()
 
+    kingdoms = await kingdoms_repo.list_kingdoms()
+    alliances = await alliances_repo.list_alliances()
     with ui.dialog() as dialog, ui.card().classes("w-full max-w-2xl"):
-        _build_player_details_step(dialog, account, allowed_alliance_ids=allowed_alliance_ids)
+        _build_player_details_step(
+            dialog, account, kingdoms=kingdoms, alliances=alliances, allowed_alliance_ids=allowed_alliance_ids
+        )
 
     dialog.open()
 
 
 def _build_player_details_step(
-    dialog, account: Account, *, allowed_alliance_ids: set[int] | None = None,
+    dialog,
+    account: Account,
+    *,
+    kingdoms: list[Kingdom],
+    alliances: list[Alliance],
+    allowed_alliance_ids: set[int] | None = None,
 ) -> None:
     """Pick the alliance to join, verify guild membership - unless `account` is
     a manual (non-Discord) account, in which case verification is skipped
@@ -708,9 +741,11 @@ def _build_player_details_step(
     `allowed_alliance_ids`, when given, restricts the Kingdom/Alliance choices
     to that set (see _open_add_player_dialog()) - an Admin/PowerAdmin adding a
     player to any account can still only place that player into an alliance
-    they themselves belong to.
+    they themselves belong to. `kingdoms`/`alliances` are snapshots taken when
+    the dialog opened.
     """
     is_manual_account = account.account_type == AccountType.MANUAL_USER
+    alliance_by_id = {a.alliance_id: a for a in alliances}
     verified_alliance_id: dict[str, int | None] = {"value": None}
     verified_nickname: dict[str, str | None] = {"value": None}
     verified_avatar_hash: dict[str, str | None] = {"value": None}
@@ -722,10 +757,10 @@ def _build_player_details_step(
         ui.label(f"Account: {account.account_name}").classes("text-sm text-grey-6")
 
     kingdom_ids = {
-        a.kingdom_id for a in alliances if allowed_alliance_ids is None or a.id in allowed_alliance_ids
+        a.kingdom_id for a in alliances if allowed_alliance_ids is None or a.alliance_id in allowed_alliance_ids
     }
     kingdom_select = ui.select(
-        {k.id: k.name for k in kingdoms if k.id in kingdom_ids}, label="Kingdom"
+        {k.kingdom_id: k.name for k in kingdoms if k.kingdom_id in kingdom_ids}, label="Kingdom"
     ).props("outlined").classes("w-full")
     alliance_select = ui.select({}, label="Alliance").props("outlined").classes("w-full")
     guild_label = ui.label().classes("text-sm text-grey-6")
@@ -738,8 +773,9 @@ def _build_player_details_step(
 
     def on_kingdom_change() -> None:
         options = {
-            a.id: a.name for a in alliances
-            if a.kingdom_id == kingdom_select.value and (allowed_alliance_ids is None or a.id in allowed_alliance_ids)
+            a.alliance_id: a.name for a in alliances
+            if a.kingdom_id == kingdom_select.value
+            and (allowed_alliance_ids is None or a.alliance_id in allowed_alliance_ids)
         }
         alliance_select.set_options(options)
         alliance_select.value = None
@@ -751,7 +787,7 @@ def _build_player_details_step(
         _sync_buttons()
 
     def on_alliance_change() -> None:
-        alliance = next((a for a in alliances if a.id == alliance_select.value), None)
+        alliance = alliance_by_id.get(alliance_select.value)
         verified_alliance_id["value"] = None
         verified_avatar_hash["value"] = None
         if is_manual_account:
@@ -759,7 +795,7 @@ def _build_player_details_step(
             # is enough to set the player's alliance_id, so unlock the details form.
             guild_label.set_text("")
             if alliance:
-                verified_alliance_id["value"] = alliance.id
+                verified_alliance_id["value"] = alliance.alliance_id
                 verify_status.classes(remove="text-negative", add="text-positive")
                 verify_status.set_text("✓ Manual account - no guild check needed")
                 details_column.set_visibility(True)
@@ -776,14 +812,14 @@ def _build_player_details_step(
     alliance_select.on_value_change(on_alliance_change)
 
     async def do_verify() -> None:
-        alliance = next((a for a in alliances if a.id == alliance_select.value), None)
+        alliance = alliance_by_id.get(alliance_select.value)
         if not alliance:
             ui.notify("Select an alliance first", type="warning")
             return
         verify_status.set_text("Checking membership…")
         check = await verify_guild_membership(alliance.discord_guild_id, account.discord_user_id)
         if check.result == MembershipResult.VERIFIED:
-            verified_alliance_id["value"] = alliance.id
+            verified_alliance_id["value"] = alliance.alliance_id
             verified_nickname["value"] = check.nickname
             verified_avatar_hash["value"] = check.avatar_hash
             verify_status.classes(remove="text-negative", add="text-positive")
@@ -818,7 +854,7 @@ def _build_player_details_step(
         if not verified_alliance_id["value"]:
             ui.notify("Verify guild membership first", type="warning")
             return
-        alliance = next(a for a in alliances if a.id == verified_alliance_id["value"])
+        alliance = alliance_by_id[verified_alliance_id["value"]]
         # Stores only the guild-specific avatar, if the member actually set one for
         # this server - may be None. Display code (player_table()) falls back to the
         # account's global avatar, then a generic icon, if this is unset. Manual
