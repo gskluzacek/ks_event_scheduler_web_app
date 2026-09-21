@@ -7,7 +7,9 @@ from nicegui import ui
 from app.components import layout, role_switcher
 from app.data import alliances as alliances_repo
 from app.models.sample_data import events
-from app.models.schema import Event, Role, next_id
+from app.models.schema import Role, next_id
+# Transitional in-memory version - this page migrates to the event table in a later step.
+from app.models.schema import SampleEvent as Event
 
 
 @ui.page("/events")

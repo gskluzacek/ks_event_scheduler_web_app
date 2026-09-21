@@ -10,7 +10,9 @@ from app.data import alliances as alliances_repo
 from app.data import kingdoms as kingdoms_repo
 from app.data import players as players_repo
 from app.models.sample_data import events, time_slots
-from app.models.schema import Alliance, Player, Role, TimeSlot, TimeSlotType, next_id
+from app.models.schema import Alliance, Player, Role, TimeSlotType, next_id
+# Transitional in-memory version - this page migrates to the time_slot table in a later step.
+from app.models.schema import SampleTimeSlot as TimeSlot
 from app.pages.account_player import (
     _admin_alliance_ids, _format_dt, _render_field, _resolve_account_name, _set_enabled,
 )

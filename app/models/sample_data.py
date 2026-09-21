@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 
-from app.models.schema import Event, TimeSlot, TimeSlotType, TimeZone, next_id
+from app.models.schema import SampleEvent as Event, SampleTimeSlot as TimeSlot, TimeSlotType, TimeZone, next_id
 
 time_zones: list[TimeZone] = [
     TimeZone(timezone_id=next_id(), region="America", location="New_York"),

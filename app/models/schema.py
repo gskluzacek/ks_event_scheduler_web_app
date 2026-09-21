@@ -3,9 +3,10 @@ Data model. Being migrated table-by-table from in-memory dataclasses to real
 SQLite tables (see web_app_requirements.md > Data Model Overview) - see
 app/db.py and app/data/ for the SQLModel/repository side of that migration.
 
-TimeZone, Account, Player, PlayerRole, Kingdom and Alliance are real `SQLModel` tables now.
-TimeSlot and Event are still plain dataclasses in module-level lists
-(app/models/sample_data.py) until their turn comes; Module-level state is
+TimeZone, Account, Player, PlayerRole, Kingdom, Alliance, Event and TimeSlot are real
+`SQLModel` tables now. SampleEvent/SampleTimeSlot are the transitional in-memory
+versions of Event/TimeSlot (module-level lists in app/models/sample_data.py), kept only
+until their pages migrate; Module-level state is
 normally an anti-pattern in NiceGUI (shared across all users - see
 nicegui_llms.md Mental Model #2), but for this mock every "user" is really
 just us previewing roles, so a shared in-memory store is fine and even
@@ -25,7 +26,7 @@ from enum import Enum
 from itertools import count
 
 from dateutil import tz
-from sqlalchemy import Enum as SAEnum
+from sqlalchemy import DDL, Enum as SAEnum, event as sa_event
 from sqlmodel import CheckConstraint, Field, SQLModel, UniqueConstraint
 
 _id_counter = count(1)
@@ -217,8 +218,98 @@ class PlayerRole(SQLModel, table=True):
     )
 
 
+class Event(SQLModel, table=True):
+    """An alliance event to be scheduled. `scheduled_start`, `scheduled_end` and
+    `is_published` are TEMPORARY: they only exist so the migrated Events page keeps
+    working as it did in memory; Greg plans to drop them (and their UI) once the
+    migration is done. Dropping a column needs a fresh kingshot.db (no Alembic)."""
+    __tablename__ = "event"
+    __table_args__ = (
+        UniqueConstraint("alliance_id", "event_name", name="uq_event_alliance_id_event_name"),
+        CheckConstraint("begin_date IS NULL OR end_date IS NULL OR begin_date <= end_date", name="ck_event_dates"),
+        CheckConstraint("qty_to_schedule >= 1", name="ck_event_qty_to_schedule"),
+    )
+
+    event_id: int | None = Field(default=None, primary_key=True)
+    alliance_id: int = Field(foreign_key="alliance.alliance_id", index=True)
+    event_name: str
+    event_desc: str = ""
+    begin_date: date | None = None  # date-only window during which the event may occur
+    end_date: date | None = None
+    qty_to_schedule: int = 1  # how many occurrences of this event to schedule within the window
+    active_ind: bool = True
+    scheduled_start: datetime | None = None  # TEMPORARY - the actual scheduled occurrence, once determined
+    scheduled_end: datetime | None = None  # TEMPORARY
+    is_published: bool = False  # TEMPORARY
+    create_account_id: int | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    update_account_id: int | None = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class TimeSlot(SQLModel, table=True):
+    """A player's recurring local availability window (time only, no date) for an event.
+
+    `end_time` is stored as the end the user picked MINUS ONE SECOND (picked 12:15 PM ->
+    12:14:59; a midnight end -> 23:59:59), so back-to-back slots never share an instant and
+    the no-overlap triggers below can use inclusive comparisons. The UI adds the second back
+    for display. `confirmed_ind` is True when the slot is confirmed; a SchedulerAdmin/SuperAdmin
+    sets it False to ask the owning account to re-confirm, and only the owner sets it back to True.
+    """
+    __tablename__ = "time_slot"
+    __table_args__ = (
+        CheckConstraint(
+            "tslot_type IN (" + ", ".join(f"'{t.value}'" for t in TimeSlotType) + ")",
+            name="ck_time_slot_tslot_type",
+        ),
+        CheckConstraint("priority IS NULL OR priority >= 1", name="ck_time_slot_priority"),
+        CheckConstraint("end_time > start_time", name="ck_time_slot_end_after_start"),
+    )
+
+    tslot_id: int | None = Field(default=None, primary_key=True)
+    event_id: int = Field(foreign_key="event.event_id", index=True)
+    player_id: int = Field(foreign_key="player.player_id", index=True)
+    tslot_type: TimeSlotType = Field(
+        default=TimeSlotType.PREFERRED,
+        sa_type=SAEnum(TimeSlotType, values_callable=lambda enum_cls: [e.value for e in enum_cls]),
+    )
+    priority: int | None = None  # NULL = no priority; 1 = highest, larger = lower. No UI yet.
+    start_time: time
+    end_time: time
+    confirmed_ind: bool = True
+    create_account_id: int | None = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    update_account_id: int | None = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# One player may not have overlapping slots for the same event (any tslot_type). SQLite has no
+# exclusion constraints, so this is a pair of triggers, installed whenever create_all() creates the
+# table - which keeps the rule true even if some other tool edits the SQLite file. SQLite stores
+# Time as 'HH:MM:SS.ffffff' text, so string comparison orders correctly. Both raise IntegrityError
+# ("time_slot overlaps ..."). NOTE for a future PostgreSQL move: use an exclusion constraint instead.
+_OVERLAP_MESSAGE = "time_slot overlaps an existing slot for this player and event"
+for _trigger_name, _trigger_event, _own_row_filter in (
+    ("trg_time_slot_no_overlap_insert", "INSERT", ""),
+    ("trg_time_slot_no_overlap_update",
+     "UPDATE OF player_id, event_id, start_time, end_time", " AND tslot_id <> NEW.tslot_id"),
+):
+    sa_event.listen(
+        TimeSlot.__table__,
+        "after_create",
+        DDL(
+            f"CREATE TRIGGER {_trigger_name} BEFORE {_trigger_event} ON time_slot "
+            "WHEN EXISTS (SELECT 1 FROM time_slot WHERE player_id = NEW.player_id AND event_id = NEW.event_id "
+            f"AND start_time <= NEW.end_time AND end_time >= NEW.start_time{_own_row_filter}) "
+            f"BEGIN SELECT RAISE(ABORT, '{_OVERLAP_MESSAGE}'); END"
+        ).execute_if(dialect="sqlite"),
+    )
+
+
+# Transitional in-memory versions, deleted along with sample_data's events/time_slots once the
+# last page reading those lists has migrated.
 @dataclass
-class TimeSlot:
+class SampleTimeSlot:
     id: int
     player_id: int
     event_id: int
@@ -233,7 +324,7 @@ class TimeSlot:
 
 
 @dataclass
-class Event:
+class SampleEvent:
     id: int
     alliance_id: int
     name: str

@@ -15,7 +15,7 @@ from nicegui import run
 from sqlmodel import delete, select
 
 from app.db import get_session
-from app.models.schema import Player, PlayerRole, Role
+from app.models.schema import Player, PlayerRole, Role, TimeSlot
 
 
 def _list(account_ids: Collection[int] | None, alliance_ids: Collection[int] | None) -> list[Player]:
@@ -61,6 +61,7 @@ def _update(player_id: int, fields: dict, roles: list[Role] | None) -> Player:
 
 def _delete(player_id: int) -> None:
     with get_session() as session:
+        session.exec(delete(TimeSlot).where(TimeSlot.player_id == player_id))
         session.exec(delete(PlayerRole).where(PlayerRole.player_id == player_id))
         session.exec(delete(Player).where(Player.player_id == player_id))
         session.commit()
@@ -134,8 +135,7 @@ async def update_player(
 
 
 async def delete_player(player_id: int) -> None:
-    """Removes the player and its player_role rows. NOTE: time slots are still
-    in-memory (sample_data) until their own migration, so nothing cascades to them."""
+    """Removes the player along with its player_role and time_slot rows."""
     await run.io_bound(_delete, player_id)
 
 

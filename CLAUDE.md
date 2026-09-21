@@ -23,6 +23,7 @@ uv run python -m app.main                      # run the app -> http://localhost
 uv run python -m scripts.seed_preview_accounts            # 5 preview accounts (ids 1001-1005)
 uv run python -m scripts.seed_preview_kingdoms_alliances  # 2 kingdoms (4001-4002), 6 alliances (2001-2006)
 uv run python -m scripts.seed_preview_players             # 12 players (needs accounts AND alliances first)
+uv run python -m scripts.seed_preview_events_time_slots   # 7 events (5001-), 16 time slots (6001-); run LAST
 ```
 
 Always run from the repo root with `-m`. All imports are `app.`-prefixed, so `cd app && python main.py` breaks.
@@ -39,16 +40,17 @@ SQLite via SQLModel. The DB file is `kingshot.db` at the repo root (git-ignored,
 | 3 | `account` | done |
 | 4 | `player`, `player_role` | done (latest commits) |
 | 5 | `kingdom`, `alliance` | done (tables, repos, seed, enforced FKs; every page reads/writes the DB; the in-memory kingdom/alliance lists and `SampleKingdom`/`SampleAlliance` are gone; in-memory events reference the pinned alliance ids via named constants) |
-| next | `time_slot`, `event` (also the last `sample_data` consumers, plus `time_zone` in `admin.py`'s Time Zones panel) | **still in-memory dataclasses** in `app/models/schema.py` + lists in `app/models/sample_data.py` |
+| 6 | `event`, `time_slot` | **in progress.** Step 1 done (tables, overlap triggers, repos `app/data/events.py` + `time_slots.py`, seed `scripts/seed_preview_events_time_slots.py`; `delete_player()` now cascades to slots). Pages still read the in-memory `SampleEvent`/`SampleTimeSlot` lists. Remaining: step 2 `events.py` + dashboard, step 3 `timeslots.py` + `search.py` + Players page slot count (grouped query), step 4 cleanup (delete the sample lists/dataclasses). At the end, Greg wants `scheduled_start`/`scheduled_end`/`is_published` dropped from `event` and the UI (needs another fresh DB). Then the last `sample_data` consumer is `admin.py`'s Time Zones panel (fix it and delete `sample_data.py` + the stale-id cleanup - ask Greg first). |
 
 Consequences to keep in mind:
 - `player.alliance_id` is now a real FK to `alliance`, and `app/db.py` turns on `PRAGMA foreign_keys` for every connection,
   so ALL declared FKs are enforced (they weren't before).
 - `discord_guild_id` is UNIQUE per alliance (one guild per alliance, per the requirements), so only seeded alliance 2001 has
   the real test guild; 2002-2006 use fake guild ids and guild verification against them is expected to fail.
-- Time slots are in memory, so `delete_player()` can't cascade to them (orphans). Resolves when `time_slot` migrates.
-- `sample_data.py` now holds only `time_zones` (used just by `admin.py`'s Time Zones panel), `events` and `time_slots`;
-  dashboard, events, timeslots, search and players import it for the still-in-memory events/time slots. Don't assume a page is DB-backed without checking. Also, `admin.py`'s Time Zones panel still reads the in-memory
+- `delete_player()` deletes the player's time slots and roles too (needed now that `time_slot.player_id` is an enforced FK).
+- `sample_data.py` now holds only `time_zones` (used just by `admin.py`'s Time Zones panel), `events` and `time_slots`
+  (`SampleEvent`/`SampleTimeSlot`, with the OLD field names: `name`, `local_start`, `needs_review`, ...); dashboard, events,
+  timeslots, search and players import it until steps 2-3 migrate them. The DB tables use the NEW names (below). Don't assume a page is DB-backed without checking. Also, `admin.py`'s Time Zones panel still reads the in-memory
   `sample_data.time_zones` although `time_zone` is a real table (known gap, deliberately out of scope for now).
 - Migrated tables use descriptive PKs (`account_id`, `player_id`, `timezone_id`), not `id`. They keep a read-only `.id`
   property alias so unmigrated page code still works; delete the alias and fix call sites when that page migrates.
@@ -83,9 +85,29 @@ Consequences to keep in mind:
 - **FKs are enforced** (`PRAGMA foreign_keys=ON` in `app/db.py`, decided during the kingdom/alliance migration), and
   `alliance.discord_guild_id` is UNIQUE. `player_role` is its own table (matches `web_app_requirements.md`); SuperAdmin is
   never in it.
-- **Planned `time_slot` schema** (agreed in chat, not yet built): `tslot_id`, `event_id`, `player_id`, `tslot_type`,
-  `priority` (small int, NULL default = no priority, 1 = highest), `start_time`, `end_time`, `validate_ind` (pure rename of
-  `needs_review`, same polarity, defaults False), plus the four audit columns. Current dataclass still uses the old names.
+- **`event` table** (`app/models/schema.py`): `event_id`, `alliance_id` (FK), `event_name`, `event_desc`, `begin_date`,
+  `end_date` (both nullable), `qty_to_schedule` (>= 1), `active_ind`, audit columns, and the TEMPORARY `scheduled_start`,
+  `scheduled_end`, `is_published`. UNIQUE(`alliance_id`, `event_name`); CHECK `begin_date <= end_date`. Renames vs the old
+  dataclass: `name` -> `event_name`, `description` -> `event_desc`.
+- **`time_slot` table**: `tslot_id`, `event_id` (FK), `player_id` (FK), `tslot_type` (preferred/acceptable/avoid, CHECK),
+  `priority` (nullable small int, 1 = highest, no UI yet, CHECK >= 1), `start_time`, `end_time`, `confirmed_ind` (default
+  True), audit columns. Renames vs the old dataclass: `id` -> `tslot_id`, `time_slot_type` -> `tslot_type`, `local_start`/
+  `local_end` -> `start_time`/`end_time`, and `needs_review` -> `confirmed_ind` with INVERTED polarity (needs_review=True is
+  confirmed_ind=False). This supersedes the earlier `validate_ind` plan.
+- **`end_time` is stored as the picked end MINUS ONE SECOND** (pick 12:15 PM -> `12:14:59`; a midnight end -> `23:59:59`), so
+  back-to-back slots never share an instant. CHECK `end_time > start_time`. The UI must add the second back for every display
+  (tables, details view, edit dropdowns) and subtract it on save; the end dropdown gets an extra midnight choice (12 AM / 00 =
+  `23:59:59`); starts stay on 15-minute boundaries 12 AM-11:45 PM.
+- **No overlapping slots for the same player + event** (any `tslot_type`), enforced by two SQLite triggers created with the
+  table (`trg_time_slot_no_overlap_insert/update`), because SQLite has no exclusion constraints. They raise an IntegrityError
+  that `app/data/time_slots.py` turns into `TimeSlotOverlapError` (catch it in the Add/Edit dialogs and show a message).
+  Use an exclusion constraint if this ever moves to PostgreSQL.
+- **`confirmed_ind` UI rules (to implement in step 3):** the OWNING account (also when that account is a SchedulerAdmin/
+  SuperAdmin editing their own slot): True -> read-only "Status: confirmed"; False -> "Please confirm" checkbox (unchecked),
+  checking it and saving sets True; the owner can never set False. SchedulerAdmin/SuperAdmin editing someone else's slot:
+  True -> "Request confirmation" toggle (default No), Yes + save sets False; False -> read-only "Status: unconfirmed"; they can
+  never set True. The Add dialog only shows a read-only "Status: Confirmed" for everyone. The table column is "Status"
+  (check mark = True, x = False), and the filter is "Status" with "OK" (True) / "Needs Confirmation" (False).
 - **SQLite now, PostgreSQL possibly later** (per requirements), which is why SQLModel/SQLAlchemy and no raw SQLite-only SQL.
 - **Idea under discussion, not decided:** removing `role_switcher.py` in favor of real login/logout via Discord OAuth
   (look up account by `discord_user_id`, store `account_id` in `app.storage.user`; role derived from
@@ -95,11 +117,12 @@ Consequences to keep in mind:
 ### Preview data and fresh-DB recipe
 Pinned ids matter because unmigrated data references them: preview accounts 1001-1005, kingdoms 4001-4002, alliances
 2001-2006 (`scripts/preview_kingdoms_alliances.yaml`; the in-memory events name alliances 2001/2002 via constants in
-`sample_data.py`), players 3001-3012 (`scripts/preview_players.yaml`), and the in-memory time slots reference player ids through named
-constants in `sample_data.py`. On a fresh DB: run the app, complete `/setup`, then `seed_preview_accounts`, then
-`seed_preview_kingdoms_alliances`, then `seed_preview_players` (that order; the players FK needs both). Otherwise time slots
-point at players that don't exist. Delete `kingshot.db` first if it predates the kingdom/alliance tables, since `create_all`
-won't add the new player->alliance FK to an existing table.
+`sample_data.py`), players 3001-3012 (`scripts/preview_players.yaml`), events 5001- and time slots 6001-
+(`scripts/preview_events_time_slots.yaml`; event dates are day offsets from seed time), and the still-in-memory time slots
+reference player ids through named constants in `sample_data.py`. On a fresh DB: run the app, complete `/setup`, then
+`seed_preview_accounts`, `seed_preview_kingdoms_alliances`, `seed_preview_players`, `seed_preview_events_time_slots` (that
+order; each stage's FKs need the previous ones). Delete `kingshot.db` first whenever it predates the tables/constraints in play
+(`create_all` never alters existing tables, e.g. it won't add the new `event`/`time_slot` FKs or triggers).
 
 ## Architecture
 
@@ -110,7 +133,7 @@ app/
   setup_gate.py      middleware: redirects gated routes to /setup until an account exists
   models/schema.py   Role/AccountType/TimeSlotType enums, SQLModel tables, remaining dataclasses
   models/sample_data.py  seeded in-memory data for not-yet-migrated tables
-  data/              repositories (accounts, players, time_zones, kingdoms, alliances)
+  data/              repositories (accounts, players, time_zones, kingdoms, alliances, events, time_slots)
   pages/             one module per @ui.page (importing the module registers the route)
   components/        layout.py (header/nav, `async with layout.frame(route)`), role_switcher.py, timezone_select.py
   auth/              Discord OAuth2 (discord_oauth.py) + bot-token guild membership check (discord_guild.py)
@@ -152,7 +175,7 @@ permissions or filters in the meantime**; migrate pages with their current behav
   alliances. SuperAdmin sees all, edits accounts, and can add players for any alliance.
 - Time Slots page: User/Admin/PowerAdmin see only their own account's players' slots. SchedulerAdmin sees slots for players in
   the alliances their account's players belong to. SuperAdmin sees everything. Filter order: Kingdom, Alliance (SuperAdmin
-  only), Account (SchedulerAdmin and SuperAdmin), Player, Event, Needs Review.
+  only), Account (SchedulerAdmin and SuperAdmin), Player, Event, Status (was Needs Review).
 - Roles editing: SuperAdmin can set `is_super_admin` on other accounts (not their own). SuperAdmin or PowerAdmin can edit a
   player's roles, but a PowerAdmin cannot edit their own roles. Valid role sets: none; Admin; PowerAdmin; SchedulerAdmin;
   Admin+SchedulerAdmin; PowerAdmin+SchedulerAdmin (never Admin+PowerAdmin). Use one consistent control for role selection,
@@ -172,7 +195,8 @@ permissions or filters in the meantime**; migrate pages with their current behav
   the filter row as well as the list.
 - Time Slots is a `ui.table` with multi-select, and a toolbar strip holding Add/View/Edit (View/Edit enabled only when exactly
   one row is selected; multi-select is there for future bulk actions such as delete). Hour dropdown 12am-11pm, minute dropdown
-  00/15/30/45, and both Add and Edit validate end > start (no overnight slots).
+  00/15/30/45, and both Add and Edit validate end > start (no overnight slots). The end value uses the stored-minus-one-second
+  convention above.
 - Site-wide: light blue-gray tint (`#dbe4ee`) on table headers; time stamps shown in the viewing user's time zone.
 
 **Dialog conventions**

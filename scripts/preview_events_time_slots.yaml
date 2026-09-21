@@ -1,0 +1,154 @@
+# Preview events and time slots inserted by scripts/seed_preview_events_time_slots.py
+# (run AFTER seed_preview_kingdoms_alliances and seed_preview_players).
+#
+# Fixed ids: events 5001-, time slots 6001-. Event dates are stored as day offsets from the day the
+# seed runs (so a freshly seeded DB always has current/upcoming events). Time slot end_time is stored
+# as the picked end minus one second (see app/models/schema.py's TimeSlot); confirmed_ind is omitted
+# when True (the default). scheduled_*/is_published are the TEMPORARY event columns.
+
+events:
+  - event_id: 5001
+    alliance_id: 2001
+    event_name: "[BT] Bear Hunt"
+    event_desc: "EOD bear trap"
+    begin_offset_days: -28
+    end_offset_days: 28
+    qty_to_schedule: 2
+    is_published: true
+  - event_id: 5002
+    alliance_id: 2001
+    event_name: "[KvK] Kingdom vs Kingdom"
+    event_desc: "Cross-kingdom war window"
+    begin_offset_days: 1
+    end_offset_days: 3
+    scheduled_start_offset_days: 2
+  - event_id: 5003
+    alliance_id: 2002
+    event_name: "[CB] Castle Battle"
+    event_desc: "Alliance castle defense"
+    begin_offset_days: 0
+    end_offset_days: 14
+  - event_id: 5004
+    alliance_id: 2002
+    event_name: "[SS] Swordland Showdown"
+    event_desc: "Win the ancient Sword of Kings and rule the realm"
+    begin_offset_days: 0
+    end_offset_days: 14
+  - event_id: 5005
+    alliance_id: 2002
+    event_name: "[TAC] Tri-Alliance Clash"
+    event_desc: "Maritime battle for the Temple Of Tides"
+    begin_offset_days: 0
+    end_offset_days: 14
+  - event_id: 5006
+    alliance_id: 2002
+    event_name: "[ACh] Alliance Championship"
+    event_desc: "Three lane round-robin 5 round tournament"
+    begin_offset_days: 0
+    end_offset_days: 14
+  - event_id: 5007
+    alliance_id: 2002
+    event_name: "[SncB] Sanctuary Battle"
+    event_desc: "Defeat the Cesares Rebels in the Sanctuary"
+    begin_offset_days: 0
+    end_offset_days: 14
+
+time_slots:
+  - tslot_id: 6001
+    event_id: 5001
+    player_id: 3001
+    start_time: "08:00:00"
+    end_time: "17:14:59"
+    tslot_type: avoid
+  - tslot_id: 6002
+    event_id: 5001
+    player_id: 3001
+    start_time: "17:15:00"
+    end_time: "17:59:59"
+    tslot_type: acceptable
+  - tslot_id: 6003
+    event_id: 5001
+    player_id: 3001
+    start_time: "18:00:00"
+    end_time: "18:59:59"
+    tslot_type: avoid
+  - tslot_id: 6004
+    event_id: 5001
+    player_id: 3001
+    start_time: "19:00:00"
+    end_time: "23:59:59"
+    tslot_type: preferred
+  - tslot_id: 6005
+    event_id: 5001
+    player_id: 3002
+    start_time: "19:00:00"
+    end_time: "20:59:59"
+    tslot_type: acceptable
+    confirmed_ind: false
+  - tslot_id: 6006
+    event_id: 5001
+    player_id: 3002
+    start_time: "22:00:00"
+    end_time: "22:59:59"
+    tslot_type: preferred
+    confirmed_ind: false
+  - tslot_id: 6007
+    event_id: 5002
+    player_id: 3003
+    start_time: "06:00:00"
+    end_time: "06:59:59"
+    tslot_type: avoid
+  - tslot_id: 6008
+    event_id: 5002
+    player_id: 3003
+    start_time: "07:00:00"
+    end_time: "07:59:59"
+    tslot_type: acceptable
+  - tslot_id: 6009
+    event_id: 5002
+    player_id: 3009
+    start_time: "06:00:00"
+    end_time: "06:59:59"
+    tslot_type: avoid
+  - tslot_id: 6010
+    event_id: 5002
+    player_id: 3009
+    start_time: "07:00:00"
+    end_time: "07:59:59"
+    tslot_type: acceptable
+  - tslot_id: 6011
+    event_id: 5002
+    player_id: 3010
+    start_time: "06:00:00"
+    end_time: "06:59:59"
+    tslot_type: avoid
+  - tslot_id: 6012
+    event_id: 5002
+    player_id: 3010
+    start_time: "07:00:00"
+    end_time: "07:59:59"
+    tslot_type: acceptable
+  - tslot_id: 6013
+    event_id: 5002
+    player_id: 3011
+    start_time: "06:00:00"
+    end_time: "06:59:59"
+    tslot_type: avoid
+  - tslot_id: 6014
+    event_id: 5002
+    player_id: 3011
+    start_time: "07:00:00"
+    end_time: "07:59:59"
+    tslot_type: acceptable
+  - tslot_id: 6015
+    event_id: 5002
+    player_id: 3012
+    start_time: "06:00:00"
+    end_time: "06:59:59"
+    tslot_type: avoid
+  - tslot_id: 6016
+    event_id: 5002
+    player_id: 3012
+    start_time: "07:00:00"
+    end_time: "07:59:59"
+    tslot_type: acceptable
