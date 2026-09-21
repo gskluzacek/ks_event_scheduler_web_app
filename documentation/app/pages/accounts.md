@@ -1,52 +1,18 @@
 # app/pages/accounts.py
 
 ## Purpose
-Implements Account Management page (`/accounts`) with role-aware filters, account table rendering, and manual account creation dialog.
+Account dialogs and mutations. There is **no** `/accounts` route: these are launched from the account cards on `/players`.
 
-## Web Features and NiceGUI Usage
-NiceGUI patterns used:
-- `@ui.page('/accounts')` route registration.
-- `layout.frame('/accounts')` shared shell.
-- `@ui.refreshable` sections for filter row and table.
-- Conditional control rendering by role (name filter, kingdom/alliance filters, admin columns).
-- Dialog-based account creation with reusable `TimeZoneSelector` component.
-- Custom avatar table slot via Quasar template in `ui.table.add_slot`.
+## Contents
+- `_open_view_account_dialog(account)` - read-only view of every account column; audit ids are shown as account names and times in
+  the account's time zone.
+- `_open_edit_account_dialog(account, on_saved=...)` - the same read-only detail, then an editable section. A **manual** account can
+  change its name; a **Discord** account can't change its name but has a "Refresh from Discord" button (below). Both can change the
+  time zone (region and location dropdowns). A SuperAdmin editing someone else's account also gets an `is_super_admin` control.
+- `_do_discord_refresh(...)` - re-fetches the Discord identity with the stored refresh token and fills the still-open dialog; the user
+  must click Save to keep it. Rate limited to 10 per 4 hours per acting session and target account (`utils/rate_limit.py`). Outcomes:
+  success, no stored credentials, re-authorization needed, or error.
+- `_open_add_account_dialog(on_added=...)` - SuperAdmin only: creates a manual account (name and time zone).
 
-Feature highlights:
-- SuperAdmin gets kingdom/alliance filters.
-- Admin/PowerAdmin get name search and add account action.
-- Plain users see their own account only.
-
-## User Interaction Processing Logic
-Major interaction flows:
-1. Filter interactions:
-   - selectors and search field update persistent filter values via `set_filter`
-   - callbacks refresh filter controls and table
-   - `_reconcile_filters()` removes invalid cross-filter combinations
-2. Table rendering:
-   - rows built from filtered in-memory accounts
-   - optional admin columns shown for elevated users
-   - optional helper hint for edit/remove behavior (not implemented)
-3. Add account flow:
-   - dialog validates required account name + timezone
-   - appends `Account` record to seed list
-   - refreshes filter + table to include new options/rows
-
-## Current Limitations
-- No true edit/remove actions despite UX hint text.
-- No backend/service layer; direct append to module list.
-- Filtering depends on player-derived alliance linkage because Account has no direct alliance relationship.
-- All data operations occur client-triggered in the page module.
-
-## Existing Issues
-1. Scope correctness issue:
-   - `_visible_accounts()` for Admin/PowerAdmin returns all accounts, not alliance-limited accounts as requirements imply.
-2. Feature completeness issue:
-   - Page suggests row edit/remove behavior but no row click handler exists.
-3. Data coupling issue:
-   - SuperAdmin kingdom/alliance filtering relies on player presence; accounts without players can be excluded unexpectedly.
-
-## Suggested Improvements
-- Add explicit account-to-alliance/ownership scoping rules.
-- Implement edit/remove workflows with confirmations and validation.
-- Introduce a service abstraction for account queries and mutations.
+Callers pass an `on_saved`/`on_added` callback instead of these functions refreshing containers themselves, which avoids a circular
+import with `players.py`.

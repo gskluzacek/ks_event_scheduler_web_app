@@ -1,57 +1,38 @@
 # app/pages/players.py
 
 ## Purpose
-Implements Player Management page (`/players`) with role-aware visibility, multidirectional filters, sortable table rendering, and a guild-verified add-player workflow.
+`/players`, titled **Accounts & Players**: one page that shows accounts and, nested under each, that account's players. (It replaced
+separate Accounts and Players pages.)
 
-## Web Features and NiceGUI Usage
-NiceGUI capabilities used extensively:
-- page route + shared layout frame
-- two `@ui.refreshable` regions (`player_filters`, `player_table`)
-- dynamic select options recalculated from active filter state
-- search field with live filtering
-- Quasar avatar slot in table for guild/global Discord image fallback
-- dialog workflow with progressive disclosure (verify first, then details)
-- async verification callback against Discord guild membership helper
+## Layout
+- Account-first: a card per visible account with its name, time zone, Discord username and player count, plus **View**, **Edit** (only
+  where `_can_edit_account`) and **Add Player** buttons, and an expander for the account's player cards. An account with no players
+  gets a disabled expander with a tooltip. With nothing visible the page says "No data available".
+- Accounts are paginated (5 per page); the expanded state, current page, filters and sort are saved per browser (see
+  [../utils/filters.md](../utils/filters.md)).
+- Player cards show avatar (guild avatar, else the account's global avatar, else a generic icon), name, town center level, kingdom,
+  alliance, Kingshot id, power, time slot count, Discord nickname and, for PowerAdmin and above, roles - with **View** and **Edit**.
+- SuperAdmin also gets **Add Account** (a manual account).
 
-Feature highlights:
-- role-based row visibility
-- kingdom/alliance/account/name filters with reconciliation
-- persistent filter + sort state
-- add player requires successful guild membership verification
+## Filters
+Kingdom, Alliance, Account name (admin roles) and Kingshot name. Kingdom and Alliance options come only from the players the viewer
+can see and narrow each other in both directions; the name boxes don't change the dropdown options. They are built with
+`safe_select`. The kingdoms and alliances are read from the database once per render and passed to pure helpers (`_narrow`,
+`_active_filters`, ...).
 
-## User Interaction Processing Logic
-Detailed interaction flow:
-1. Page load computes visible players by role/account.
-2. Filter row builds options based on other active filters.
-3. On filter change:
-   - persist selected value
-   - reconcile invalid combinations
-   - refresh filters and table
-4. On name input change:
-   - update stored query
-   - refresh table only
-5. Add Player dialog:
-   - user selects kingdom/alliance
-   - user verifies membership asynchronously
-   - on success, detail fields become visible
-   - submit appends `Player` with resolved role defaults and avatar fallback path
-   - refreshes filters and table
+## Visibility (current behavior)
+- SuperAdmin: every account and player.
+- Admin/PowerAdmin: every account (view only), but only players in alliances they belong to.
+- User/SchedulerAdmin: only their own account and its players.
 
-## Current Limitations
-- No edit/delete support for player records.
-- No uniqueness checks for Kingshot ID per alliance/account.
-- Direct list mutation instead of validated service layer.
-- No pagination despite sortable table state persistence.
+## Player dialogs
+- **View** - every player column with audit ids resolved to names.
+- **Edit** - editable: Kingshot name, power, town center level, and (SuperAdmin/PowerAdmin) roles; the Discord nickname and guild
+  avatar change only through "Sync from Discord" (bot-token check). A PowerAdmin can't edit their own roles.
+- **Add Player** (from an account card) - pick Kingdom, then Alliance (narrowed to that kingdom; Admin/PowerAdmin only see their
+  own alliances), then **Verify Guild Membership** (enabled once both are chosen); the detail fields appear and **Add Player** is
+  enabled only after a successful check. Manual accounts skip verification. The creator is recorded (null when adding to your own
+  account).
 
-## Existing Issues
-1. Input validation issue:
-   - Add Player submit permits empty Kingshot ID/name because fields default to empty strings.
-2. Authorization architecture issue:
-   - Role preview mechanism controls visibility, but server-side write guards are minimal.
-3. Data consistency issue:
-   - No prevention of duplicate players or invalid cross-entity combinations beyond guild verification.
-
-## Suggested Improvements
-- Enforce required Kingshot fields and uniqueness checks.
-- Add edit/remove workflows with permission checks.
-- Introduce service layer with validation and persistence boundaries.
+Slot counts come from one grouped query (`count_time_slots_by_player`). See also [account_player.md](account_player.md) and
+[accounts.md](accounts.md).

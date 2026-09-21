@@ -1,5 +1,6 @@
-# app/models Index
+# app/models Documentation Index
 
 - [__init__.md](__init__.md)
 - [schema.md](schema.md)
-- [sample_data.md](sample_data.md)
+
+There is no longer a `sample_data` module: every table is a real SQLite table.

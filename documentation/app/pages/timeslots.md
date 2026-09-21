@@ -1,47 +1,30 @@
 # app/pages/timeslots.py
 
 ## Purpose
-Implements Time Slot Management page (`/timeslots`) with multi-filter controls, sortable table output, and dialog-based time-slot creation.
+`/timeslots`: a player's recurring availability windows per event, with filters and View / Add / Edit.
 
-## Web Features and NiceGUI Usage
-NiceGUI patterns used:
-- route and shared layout frame
-- `@ui.refreshable` filter and table sections
-- persisted filters and sort state via utility helpers
-- custom avatar table slot for player/account profile display
-- dialog form using select/number controls for time slot entry
+## Visibility (current behavior)
+User, Admin and PowerAdmin see only their own account's players' slots. SchedulerAdmin sees slots for players in the alliances their
+account's players belong to. SuperAdmin sees everything.
 
-Feature highlights:
-- player, event, type, and needs-review filters
-- role-aware slot visibility
-- time slot creation with duration-based end-time calculation
+## Table and filters
+- Columns: avatar, Player, Event, Local Start, Local End, Type, **Status** (a check mark for confirmed, an x for "needs
+  confirmation"). The end shown is the picked end (stored + 1 second), with midnight as `24:00`.
+- Filters, left to right: Kingdom and Alliance (SuperAdmin), Account (SchedulerAdmin and SuperAdmin), Player, Event, Type,
+  **Status** (OK / Needs Confirmation). The structured ones narrow each other. All are `safe_select`s. Sorting and filters are saved
+  per browser.
+- The toolbar (View, Edit, Add Time Slot) acts on the selected row; View and Edit are enabled only when exactly one row is selected.
 
-## User Interaction Processing Logic
-Interaction flow:
-1. Page computes visible slot set by role.
-2. User applies filters; callback stores value and refreshes table.
-3. Table rebuilds row set from filtered results and applies sort state.
-4. Add dialog flow:
-   - select player and event
-   - select hour/minute and duration
-   - choose time-slot type
-   - submit appends `TimeSlot` and refreshes table
+## Dialogs
+- **Add**: player, event, start and end hour/minute dropdowns (start 12 AM-11:45 PM in 15-minute steps; **12 AM / 00 as the end
+  means midnight**), and type. The status is shown read-only as "Confirmed". The end must be after the start, and the slot can't
+  overlap another for the same player and event (a clear warning appears). The creator is null when the owner adds their own slot.
+- **Edit**: start, end and type, plus the confirmation control:
+  - the **owning account** (even if a SchedulerAdmin/SuperAdmin): confirmed shows read-only "Status: confirmed"; unconfirmed shows a
+    "Please confirm" checkbox, and ticking it and saving sets it confirmed. The owner can never unconfirm.
+  - a **SchedulerAdmin/SuperAdmin editing someone else's slot**: confirmed shows a "Request confirmation" No/Yes toggle (Yes and save
+    sets it unconfirmed); unconfirmed shows read-only "Status: unconfirmed". They can never re-confirm.
+- **View**: every column, times shown as picked.
 
-## Current Limitations
-- No edit/delete operations.
-- No overlap/conflict checks between time slots.
-- End time is computed as time-only and does not capture day rollover semantics.
-- No alliance scoping checks between selected player and selected event.
-
-## Existing Issues
-1. Requirement mismatch issue:
-   - Users can create time slots for events outside the player's alliance because event options are not scoped.
-2. Validation issue:
-   - No guard against duplicate or overlapping windows for same player/event.
-3. Data semantics issue:
-   - Time-only end values can hide crossing-midnight intent.
-
-## Suggested Improvements
-- Restrict event options by selected player's alliance.
-- Add conflict/overlap validation.
-- Represent overnight windows explicitly or include duration semantics in data model.
+Stored times use the end-minus-one-second convention: see [../utils/slot_times.md](../utils/slot_times.md) and
+[../data/time_slots.md](../data/time_slots.md).

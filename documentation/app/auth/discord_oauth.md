@@ -7,6 +7,10 @@ Implements Discord OAuth identify-scope helper functions:
 - exchange OAuth code for token
 - fetch Discord user profile
 - build global avatar CDN URL
+- work out a token's absolute expiry (`token_expiry_from`)
+- refresh a stored access token and the identity (`refresh_access_token`, `refresh_discord_identity` returning a
+  `RefreshResult` whose `RefreshOutcome` is `SUCCESS`, `NO_CREDENTIALS`, `REAUTH_REQUIRED` or `ERROR`) for the
+  "Refresh from Discord" account action
 
 The module deliberately does not verify guild membership; that is handled separately.
 
@@ -18,7 +22,8 @@ NiceGUI-related flow integration:
 2. Page stores OAuth state in `app.storage.user`.
 3. Page redirects to URL built by `build_authorize_url`.
 4. FastAPI callback route uses `exchange_code_for_token` and `fetch_discord_user`.
-5. NiceGUI page consumes returned identity to complete account registration.
+5. NiceGUI page consumes returned identity to complete account registration (the access and refresh tokens are stored on the
+   account so it can later be refreshed without logging in again).
 
 Although this module has no `ui.*` calls, it is central to the auth UI journey.
 

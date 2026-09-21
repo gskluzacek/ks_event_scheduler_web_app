@@ -1,18 +1,5 @@
 # app/pages/__init__.py
 
 ## Purpose
-Marks `app.pages` as a package and supports side-effect route registration when modules are imported by `app/main.py`.
-
-## NiceGUI and Web Feature Relevance
-Although empty, this file supports the route bootstrap pattern:
-- importing `app.pages.*` executes each `@ui.page` decorator
-- resulting routes become available when NiceGUI starts
-
-## User Interaction Logic
-No direct interaction logic exists here.
-
-## Current Limitations
-- No central route manifest or metadata in package initializer.
-
-## Existing Issues
-- No direct file-level issues identified.
+Package marker. `app/main.py` imports each page module; importing is what registers its routes. `accounts.py` and
+`account_player.py` have no route - they are imported by `players.py`.

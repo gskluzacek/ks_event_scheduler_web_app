@@ -1,39 +1,17 @@
 # app/utils/filters.py
 
 ## Purpose
-Centralizes persisted filter and sort helpers for maintenance pages.
+Persisted filter and sort state for the page filter rows. Values live in `app.storage.user`, so a filter survives
+navigating away and back (and reloads) until the session ends or the state is cleared. (`app.storage.tab` would isolate
+filters per browser tab but needs a live websocket connection, which isn't available while a page is being built.)
 
-## Web Features and NiceGUI Usage Context
-This utility supports multiple NiceGUI pages (`accounts`, `players`, `timeslots`) by abstracting:
-- reading ID-based filters safely
-- reading/writing text filters
-- reading/writing table sort state
+## Contents
+- `get_id_filter(key, valid_ids)` - a stored id, or `None`, dropping it if it isn't in `valid_ids` (what the viewer can pick
+  right now). Built on `get_valid_id()`; the cascading Kingdom/Alliance/Account/Player filters rely on it to work out each
+  filter's current value.
+- `get_text_filter(key)` / `set_filter(key, value)` - text and single-select filters.
+- `get_sort_state(by_key, desc_key)` / `set_sort_state(...)` - persisted table sort.
 
-It is tightly coupled to NiceGUI session storage (`app.storage.user`).
-
-## User Interaction Processing Logic
-Typical callback pattern enabled by this file:
-1. User changes filter control.
-2. Page callback calls `set_filter(...)`.
-3. Page rebuild reads values through `get_id_filter(...)` / `get_text_filter(...)`.
-4. Invalid stored IDs are auto-healed by `get_valid_id(...)` from storage utility.
-
-Sort behavior:
-- table pagination events persist sort-by and descending flags.
-- subsequent renders reuse those values.
-
-## Current Limitations
-- No namespacing beyond caller-provided keys (collision risk if keys reused).
-- Uses session user storage, so values persist broadly across page visits unless cleared.
-- No versioning/migration for saved filter key formats.
-
-## Existing Issues
-1. Storage coupling issue:
-   - Hard dependency on `app.storage.user` may not fit future per-tab/per-view filter requirements.
-2. Lifecycle issue:
-   - Persisted keys can become stale when data model evolves (partially mitigated for ID filters only).
-
-## Suggested Improvements
-- Add key prefix conventions and helper constants.
-- Consider optional storage backend parameter for broader reuse.
-- Add helper for bulk-clearing namespaced filter keys.
+## Conventions
+Each page defines its own keys, named `<page>_...` (`players_...`, `timeslots_...`) so `clear_page_state()` can find them
+(see [storage.md](storage.md)). Build the selects with [`safe_select`](../components/safe_select.md).

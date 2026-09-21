@@ -1,50 +1,18 @@
 # app/pages/events.py
 
 ## Purpose
-Implements Event Management page (`/events`) with list display, publish toggle, and event creation dialog for scheduler-capable roles.
+`/events`: everyone sees the event list; SchedulerAdmin, PowerAdmin and SuperAdmin can also create events and use the publish toggle.
 
-## Web Features and NiceGUI Usage
-NiceGUI features used:
-- role-gated `Create Event` action button
-- `@ui.refreshable` event list for lightweight list refresh after mutations
-- card-based event rendering with badges for draft/published/inactive
-- modal creation dialog using `ui.dialog` and form inputs
-- simple toast notifications via `ui.notify`
+## Content
+- Each event card shows the name, the alliance and description, the begin/end window with the quantity to schedule, an "Inactive"
+  badge when `active_ind` is false, a "Scheduled:" line when `scheduled_start` is set, and a Published/Draft badge. With no events,
+  a "No events yet" note appears.
+- Managers also see a publish/unpublish button (saved to the database, recording who changed it) and a placeholder
+  "Run scheduling algorithm" button (it only shows a notice; the algorithm isn't built).
+- **Create Event** dialog: alliance (from the database), name, description, begin and end date, quantity. The database's rules produce
+  friendly messages: a duplicate name within the alliance, a begin date after the end date, a quantity below 1. The creator's account
+  id is recorded.
 
-Role behavior:
-- scheduler and power admin roles can create and publish/unpublish events
-- all users can view event list
-
-## User Interaction Processing Logic
-Interaction paths:
-1. Create flow:
-   - user opens dialog
-   - enters name/description/alliance/window/quantity
-   - submit validates required fields (name + alliance)
-   - event appended to in-memory list
-   - list refresh + success notification
-2. Publish flow:
-   - user clicks round publish icon
-   - `is_published` toggles
-   - event list refreshes
-3. Scheduling action:
-   - action button currently shows informational notification only
-
-## Current Limitations
-- No edit/delete for existing events.
-- No server-side validation for date range consistency.
-- Scheduling algorithm is stubbed.
-- Event visibility is not alliance-scoped for non-admin roles.
-
-## Existing Issues
-1. Rules enforcement gap:
-   - Users can create events with invalid windows (e.g., end before begin) because no validation exists.
-2. Authorization gap:
-   - All users can see all events, regardless of alliance context.
-3. Functional gap:
-   - "Run scheduling algorithm" is non-functional placeholder.
-
-## Suggested Improvements
-- Add edit/delete and status transitions.
-- Enforce begin/end date validation.
-- Implement alliance-scoped visibility and scheduling service.
+## Notes
+`scheduled_start`, `scheduled_end` and `is_published` (and everything above that uses them) are temporary; they are planned to be
+removed. The Time Slots page's Event filter and Add dialog list all events, as they always have.

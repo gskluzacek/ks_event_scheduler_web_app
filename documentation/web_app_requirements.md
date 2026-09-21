@@ -82,21 +82,40 @@ The application can be divided into the following functional areas:
 
 ## tables
 
+All tables also carry the audit columns `create_account_id` (null when a user created their own row), `created_at`,
+`update_account_id` and `updated_at`, except `time_zone` and `player_role`. Primary keys are named `<table>_id`. The columns below are
+the ones implemented (see `documentation/app/models/schema.md`).
+
 * kingdom
+  * columns: kingdom_id, name (unique).
 * alliance
+  * columns: alliance_id, kingdom_id, name, discord_guild_id, discord_guild_name.
+  * an alliance's name is unique within its kingdom, and a Discord guild belongs to at most one alliance (discord_guild_id is unique).
 * account
+  * columns: account_id, account_type (discord-user or manual-user), account_name (unique), time_zone (IANA name), discord_user_id
+    (unique), discord_username, discord_global_name, discord_avatar_url, discord_access_token, discord_refresh_token,
+    discord_token_expires_at, is_super_admin.
+  * the Discord columns are filled only for discord-user accounts; the OAuth tokens must be encrypted at rest before going live.
 * player
+  * columns: player_id, account_id, alliance_id, kingshot_id, kingshot_name, discord_nickname, power, town_center_level (a string:
+    1-30, then TG1-1 through TG5-5), discord_guild_avatar_url.
 * time_slot
-  * columns: time_slot_id, player_id, event_id, local_start_time, local_end_time, time_slot_type, priority, 
-    validated_indicator
-  * we store only start time and end time, no date components.
-  * time slot types are: prefered, acceptable, and avoid.
+  * columns: tslot_id, event_id, player_id, tslot_type, priority, start_time, end_time, confirmed_ind.
+  * we store only a start time and an end time, no date components.
+  * time slot types are: preferred, acceptable, and avoid.
+  * end_time is stored as the end the user picked **minus one second** (a picked end of 12:15 PM is stored as 12:14:59, and a
+    midnight end as 23:59:59), so back-to-back slots never share an instant; the UI shows the picked end. end_time must be after
+    start_time.
+  * a player may not have overlapping time slots for the same event (any type); this is enforced in the database.
+  * priority is an optional small integer (1 = highest); there is no UI for it yet.
+  * confirmed_ind is true when the slot is confirmed. A SchedulerAdmin or SuperAdmin can set it to false to ask the owning account
+    to re-confirm it; only the owning account can set it back to true.
 * event
-  * columns: event_id, event_name, event_desc, qty_to_schedule, begin_date, end_date, active_ind, create_account_id, 
-    create_date_time, update_account_id, update_date_time
-  * 
-* role
-* player_role - is this needed?
+  * columns: event_id, alliance_id, event_name, event_desc, begin_date, end_date, qty_to_schedule, active_ind.
+  * an event name is unique within its alliance, and begin_date must not be after end_date.
+  * the code currently also has scheduled_start, scheduled_end and is_published; these are temporary and are planned to be removed.
+* role - not a table: the roles (User, Admin, PowerAdmin, SchedulerAdmin, SuperAdmin) are an enum in the code.
+* player_role - yes, needed: one row per (player, role), holding the roles assigned to a player (never SuperAdmin).
 * time_zone
   * columns: time_zone_id, region, location. 
   * the IANA time zone name is split into region and location to facilitate selecting a complete IANA time zone name from two drop down lists. 
@@ -127,6 +146,7 @@ The application can be divided into the following functional areas:
 * each time slot is associated with a specific event and player
 * events belongs to exactly one Alliance
 * a player can only create time slots for events that are associated with their Alliance
+  * (not enforced yet: the Add Time Slot dialog currently offers every event)
 
 notes:
 * since the SuperAdmin role is a system-wide role, it is not associated with any specific Alliance. As such, it 

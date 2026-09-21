@@ -24,10 +24,15 @@ uv run python -m scripts.seed_preview_accounts            # 5 preview accounts (
 uv run python -m scripts.seed_preview_kingdoms_alliances  # 2 kingdoms (4001-4002), 6 alliances (2001-2006)
 uv run python -m scripts.seed_preview_players             # 12 players (needs accounts AND alliances first)
 uv run python -m scripts.seed_preview_events_time_slots   # 7 events (5001-), 16 time slots (6001-); run LAST
+uv run pytest                                             # the test suite (see below)
 ```
 
 Always run from the repo root with `-m`. All imports are `app.`-prefixed, so `cd app && python main.py` breaks.
-There is no test suite and no CI yet; verification is manual (run the app, switch roles, click through pages).
+There is a pytest suite in `tests/` (76 tests, ~30 s) and no CI yet. Each test gets its own freshly seeded temp SQLite database
+(so `kingshot.db` and `.nicegui/` are never touched) and pages are driven with NiceGUI's simulated-browser `user` fixture; see
+`tests/README.md` for the layout and the gotchas (the plugin resets routes per test, async handlers need a short `asyncio.sleep`,
+target the newest dialog's fields). Run `uv run pytest` after any change; add or extend a page test when you change a page. Discord
+calls (guild verification, refresh) are not exercised. Also verify UI changes by hand, since the tests only cover what they assert.
 
 ## Backend migration status (in-memory -> SQLite) - READ THIS FIRST
 
@@ -252,9 +257,9 @@ instead of reading `STORAGE_SECRET`; fix before real use. Keep OAuth `state` val
 Discord/network failures to the user instead of swallowing them.
 
 ## Stale or non-runtime material - don't trust or edit without asking
-- `documentation/app/**` (per-module markdown) is OUT OF DATE and predates the SQLite migration. Code and this file win.
-  It also has no docs for `db.py`, `data/`, `setup.py`, `setup_gate.py`, `account_player.py`.
-- `README.md` still says "all data lives in-memory" and "No persistence"; that is no longer true: every table is in SQLite now.
+- `documentation/app/**` (per-module markdown, one file per code module, indexed by `documentation/app/index.md`) and `README.md`
+  were refreshed on 2026-09-21 after the migration finished. Keep them in step with code changes; if one disagrees with the code,
+  the code wins. `documentation/web_app_requirements.md`'s data-model section was updated to the implemented schema.
 - `.github/copilot-instructions.md` and `.github/instructions/*` (plus `.github/agents/*`) are GitHub Copilot config.
   They pre-date the migration and omit SQLModel; treat as background only.
 - `discord_integration_poc/`, `nicegui_exploration/`: historical/sandbox, not part of the runtime.

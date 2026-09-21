@@ -1,42 +1,21 @@
 # app/components/role_switcher.py
 
 ## Purpose
-Implements a mock account/role switching control for previewing role-gated page behavior without full authentication/authorization infrastructure.
+A **development-time** stand-in for real login and role assignment: the header's "Previewing as" account and role
+dropdowns. The previewed account and role are saved in `app.storage.user` (`preview_account_id`, `preview_role`). It is
+planned to disappear once real login exists, which also removes the preview half of the stale-id handling.
 
-## Web Features and NiceGUI Usage
-NiceGUI patterns used:
-- Uses `app.storage.user` for per-browser-session persistence.
-- Renders header controls with `ui.row`, `ui.select`, `ui.icon`, and `ui.label`.
-- Registers `on_value_change` callbacks on account/role selectors.
-- Uses `ui.navigate.reload()` to force route rebuild under new role context.
+## Contents
+- `load_accounts()` - fetches the account list once per page load (`layout.frame()` calls it) and keeps it in
+  `app.storage.client`, so the synchronous helpers below can read it from anywhere, including button handlers.
+- `current_account_id()` - the saved account id, falling back to the first account if it's missing or no longer exists
+  (via `get_valid_id`).
+- `current_role()` - the saved role (default `User`).
+- `is_at_least(*allowed)` - True if the current role is one of `allowed` **or SuperAdmin**.
+- `is_any_admin()` - True for Admin, PowerAdmin, SchedulerAdmin or SuperAdmin.
+- `render()` - draws the two dropdowns (built with `safe_select`). Choosing "- New User (not registered) -" navigates to
+  `/register` without saving anything. Changing either dropdown calls `clear_page_state()` (the previous view's saved
+  filters, sorting and paging no longer apply), saves the new values and reloads the page.
 
-This component is reused from the shared layout and therefore influences every page.
-
-## User Interaction Processing Logic
-Interaction flow:
-1. User changes account or role in dropdowns.
-2. Callback updates session storage keys:
-   - `preview_account_id`
-   - `preview_role`
-3. Page reload occurs to recompute visibility, filters, and data scope.
-4. Special sentinel option routes user to registration page without persisting invalid account.
-
-Helper functions (`current_role`, `is_at_least`, `is_any_admin`) provide role predicates used throughout page logic.
-
-## Current Limitations
-- This is a mock mechanism and not real role assignment/auth.
-- Depends on sample data remaining present.
-- Uses full page reload for state transition rather than selective refresh.
-
-## Existing Issues
-1. Stability issue:
-   - `current_account_id()` assumes `accounts[0]` exists; empty account list would raise an exception.
-2. Security-model issue:
-   - Role preview can elevate capabilities in UI without true backend authorization checks.
-3. Scalability issue:
-   - Full page reload on each role/account change can be heavy for larger pages.
-
-## Suggested Improvements
-- Add fallback behavior when account list is empty.
-- Decouple mock preview from production authorization paths.
-- Consider partial refresh patterns for smoother transitions.
+## Notes
+Roles here are a preview only; nothing is enforced server-side yet.
