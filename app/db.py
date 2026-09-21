@@ -28,10 +28,14 @@ def enable_foreign_keys(dbapi_connection, _connection_record) -> None:
 event.listen(engine, "connect", enable_foreign_keys)
 
 
-def init_db() -> None:
+def init_db() -> bool:
     """Creates any tables that don't exist yet. Safe to call on every startup -
-    existing tables and data are left alone."""
+    existing tables and data are left alone. Returns True if the database file
+    did not exist before this call (first run, or kingshot.db was deleted)."""
+    db_file = engine.url.database
+    is_new = bool(db_file) and db_file != ":memory:" and not Path(db_file).exists()
     SQLModel.metadata.create_all(engine)
+    return is_new
 
 
 def get_session() -> Session:

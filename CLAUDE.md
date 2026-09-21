@@ -50,11 +50,20 @@ Consequences to keep in mind:
   the real test guild; 2002-2006 use fake guild ids and guild verification against them is expected to fail.
 - `delete_player()` deletes the player's time slots and roles too (needed now that `time_slot.player_id` is an enforced FK).
 - Tables use descriptive PKs (`account_id`, `player_id`, `timezone_id`, ...), not `id`; the transitional `.id` aliases are gone.
-- **Keep `get_valid_id()` / `get_id_filter()`** (`app/utils/storage.py`, `filters.py`). The todo to remove the "stale id"
-  handling was checked on 2026-09-21 and is NOT safe: `app.storage.user` outlives the DB (kingshot.db is wiped and reseeded
-  often) and filters are validated against what the current role can see, and with the guard off `ui.select` raises
-  `ValueError: Invalid value` and the page 500s (verified). Only its old sample-data-ids rationale was obsolete, and the docs
-  were corrected.
+- **Stale ids in `app.storage.user` (decided 2026-09-21; see `app/utils/storage.py`'s docstring).** Saved ids (preview account,
+  filter values) outlive the data they point at, and a stale one makes `ui.select` raise `ValueError: Invalid value` and the
+  page 500 (verified). It isn't only a development problem: another user deleting an event, a role or alliance change
+  shrinking the viewer's visible set, or a different person signing in on the same browser all do it in production. Three
+  layers, all kept: (1) development resets - a brand-new database (`init_db()` returns True; `app/main.py`) deletes the saved
+  browser sessions (`clear_stored_user_sessions()`), and switching the preview account/role calls `clear_page_state()`, which
+  removes only keys starting with `PAGE_STATE_PREFIXES` (`players_`, `timeslots_`) - not the Discord login-flow keys or the
+  rate limiter; (2) `get_valid_id()`/`get_id_filter()`, which the cascading filters use to compute their effective values
+  (load-bearing logic, not only a guard); (3) `app/components/safe_select.py`'s `safe_select()`.
+  **Use `safe_select()` instead of `ui.select` for any select whose value comes from storage or possibly-changed data**, and
+  name new page-state keys `<page>_...` and add the prefix to `PAGE_STATE_PREFIXES`. A DB first created by a seed script (before
+  the app ever starts) isn't detected by (1), so (2)/(3) still matter there.
+  **TODO: revisit this whole area once Greg finishes `documentation/screen_role_acctions.xlsx`** (and the filter revamp); also
+  because the preview account/role switcher disappears with real login, which removes the preview-account half.
 - Before going live: `Account.discord_access_token` / `discord_refresh_token` are stored as plain text and must be
   encrypted at rest.
 

@@ -21,6 +21,7 @@ from nicegui import app, ui
 
 from app.auth.discord_guild import MembershipResult, build_guild_avatar_url, verify_guild_membership
 from app.components import layout, role_switcher
+from app.components.safe_select import safe_select
 from app.data import accounts as accounts_repo
 from app.data import alliances as alliances_repo
 from app.data import kingdoms as kingdoms_repo
@@ -228,12 +229,12 @@ async def player_filters() -> None:
     with ui.row().classes("w-full items-end gap-2"):
         # Order: Kingdom, Alliance, Account Name, Kingshot Name - coarse-to-fine.
         kingdom_options = {k.kingdom_id: k.name for k in kingdoms if k.kingdom_id in kingdom_option_ids}
-        kingdom_select = ui.select(
+        kingdom_select = safe_select(
             kingdom_options, label="Kingdom", value=kingdom_id,
         ).props("outlined dense clearable").classes("w-48")
 
         alliance_options = {a.alliance_id: a.name for a in alliances if a.alliance_id in alliance_option_ids}
-        alliance_select = ui.select(
+        alliance_select = safe_select(
             alliance_options, label="Alliance", value=alliance_id,
         ).props("outlined dense clearable").classes("w-48")
 

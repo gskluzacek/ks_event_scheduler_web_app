@@ -38,7 +38,8 @@ from nicegui import app, ui
 
 from app.data import accounts as accounts_repo
 from app.models.schema import Account, Role
-from app.utils.storage import get_valid_id
+from app.components.safe_select import safe_select
+from app.utils.storage import clear_page_state, get_valid_id
 
 STORAGE_ACCOUNT_KEY = "preview_account_id"
 STORAGE_ROLE_KEY = "preview_role"
@@ -111,12 +112,12 @@ def render() -> None:
         ui.label("Previewing as:").classes("text-sm text-white/80")
 
         # bg-white so the dropdown isn't the same color as the header behind it.
-        account_select = ui.select(
+        account_select = safe_select(
             account_options,
             value=current_account_id(),
         ).props("dense outlined bg-color=white").classes("w-40 rounded")
 
-        role_select = ui.select(
+        role_select = safe_select(
             role_options,
             value=current_role().value,
         ).props("dense outlined bg-color=white").classes("w-44 rounded")
@@ -128,6 +129,9 @@ def render() -> None:
                 # resets things back to normal.
                 ui.navigate.to("/register")
                 return
+            # A different account/role sees different data, so the previous one's saved filters,
+            # sorting, paging and expanded cards no longer apply - start the new view clean.
+            clear_page_state()
             app.storage.user[STORAGE_ACCOUNT_KEY] = account_select.value
             app.storage.user[STORAGE_ROLE_KEY] = role_select.value
             ui.navigate.reload()  # simplest way to re-run page builders with the new role

@@ -11,6 +11,7 @@ from app.data import events as events_repo
 from app.data import kingdoms as kingdoms_repo
 from app.data import players as players_repo
 from app.data import time_slots as time_slots_repo
+from app.components.safe_select import safe_select
 from app.data.time_slots import TimeSlotOverlapError
 from app.models.schema import Alliance, Event, Player, Role, TimeSlot, TimeSlotType
 from app.pages.account_player import (
@@ -218,12 +219,12 @@ async def slot_filters() -> None:
         kingdom_select = alliance_select = account_select = None
         if show_kingdom_alliance:
             kingdom_options = {k.kingdom_id: k.name for k in kingdoms if k.kingdom_id in kingdom_option_ids}
-            kingdom_select = ui.select(
+            kingdom_select = safe_select(
                 kingdom_options, label="Kingdom", value=kingdom_id,
             ).props("outlined dense clearable").classes("w-40")
 
             alliance_options = {a.alliance_id: a.name for a in alliances if a.alliance_id in alliance_option_ids}
-            alliance_select = ui.select(
+            alliance_select = safe_select(
                 alliance_options, label="Alliance", value=alliance_id,
             ).props("outlined dense clearable").classes("w-40")
 
@@ -232,24 +233,24 @@ async def slot_filters() -> None:
             account_options = {
                 acc.account_id: acc.account_name for acc in visible_accounts if acc.account_id in account_option_ids
             }
-            account_select = ui.select(
+            account_select = safe_select(
                 account_options, label="Account", value=account_id,
             ).props("outlined dense clearable").classes("w-40")
 
-        player_select = ui.select(
+        player_select = safe_select(
             player_options, label="Player", value=player_id,
         ).props("outlined dense clearable").classes("w-40")
 
-        event_select = ui.select(
+        event_select = safe_select(
             {e.event_id: e.event_name for e in events}, label="Event", value=event_id,
         ).props("outlined dense clearable").classes("w-40")
 
-        type_select = ui.select(
+        type_select = safe_select(
             {t.value: t.value.capitalize() for t in TimeSlotType},
             label="Type", value=type_value or None,
         ).props("outlined dense clearable").classes("w-36")
 
-        status_select = ui.select(
+        status_select = safe_select(
             {"ok": "OK", "needs": "Needs Confirmation"}, label="Status", value=status_value or None,
         ).props("outlined dense clearable").classes("w-48")
 

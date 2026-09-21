@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from nicegui import ui
 
+from app.components.safe_select import safe_select
 from app.models.schema import TimeZone
 
 
@@ -32,10 +33,10 @@ class TimeZoneSelector:
         initial_region, initial_location = value.split("/", 1) if value else (None, None)
 
         with ui.row().classes("w-full gap-2"):
-            self.region_select = ui.select(
+            self.region_select = safe_select(
                 regions, value=initial_region, label="Region",
             ).props("outlined").classes("flex-1")
-            self.location_select = ui.select(
+            self.location_select = safe_select(
                 self._locations_for(initial_region), value=initial_location, label="Location",
             ).props("outlined").classes("flex-1")
 

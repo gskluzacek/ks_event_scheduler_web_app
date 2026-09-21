@@ -33,7 +33,8 @@ def get_id_filter(storage_key: str, valid_ids: Container[T]) -> T | None:
     `valid_ids` is whatever this viewer can currently pick (e.g. the accounts of
     the players they can see). Reuses get_valid_id()'s staleness guard
     (app/utils/storage.py) so a stored value that no longer exists, or that the
-    current role can't see, is dropped instead of crashing a ui.select.
+    current role can't see, is dropped instead of crashing a ui.select. (Selects
+    should still be built with app.components.safe_select.safe_select().)
     """
     return get_valid_id(storage_key, valid_ids, None, storage=app.storage.user)
 
