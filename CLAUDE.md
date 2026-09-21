@@ -38,7 +38,7 @@ SQLite via SQLModel. The DB file is `kingshot.db` at the repo root (git-ignored,
 | 1-2 | `time_zone`, `account` groundwork + first-run setup wizard (`/setup`) | done |
 | 3 | `account` | done |
 | 4 | `player`, `player_role` | done (latest commits) |
-| 5 | `kingdom`, `alliance` | **in progress.** Steps 1-2 done (tables, repos, seed, enforced FKs; `players.py` reads the DB). `timeslots`, `search`, `admin`, `events` still read the in-memory `sample_data` lists (`SampleKingdom`/`SampleAlliance`). Remaining: timeslots/search, admin/events, then remove the sample lists. |
+| 5 | `kingdom`, `alliance` | **in progress.** Steps 1-3 done (tables, repos, seed, enforced FKs; `players`, `timeslots`, `search` read the DB). `admin` and `events` still read the in-memory `sample_data` lists (`SampleKingdom`/`SampleAlliance`). Remaining: admin/events, then remove the sample lists. |
 | next | `time_slot`, `event` | **still in-memory dataclasses** in `app/models/schema.py` + lists in `app/models/sample_data.py` |
 
 Consequences to keep in mind:
@@ -49,8 +49,8 @@ Consequences to keep in mind:
 - `discord_guild_id` is UNIQUE per alliance (one guild per alliance, per the requirements), so only seeded alliance 2001 has
   the real test guild; 2002-2006 use fake guild ids and guild verification against them is expected to fail.
 - Time slots are in memory, so `delete_player()` can't cascade to them (orphans). Resolves when `time_slot` migrates.
-- Pages still importing `sample_data`: dashboard, events, search, timeslots (kingdoms/alliances/events/time slots), players
-  (time slots only, for the count column), admin. Don't assume a page is DB-backed without checking. Also, `admin.py`'s Time Zones panel still reads the in-memory
+- Pages still importing `sample_data`: dashboard, events (events + alliances), admin (kingdoms/alliances/time zones), and
+  timeslots, search, players for the still-in-memory events/time slots only. Don't assume a page is DB-backed without checking. Also, `admin.py`'s Time Zones panel still reads the in-memory
   `sample_data.time_zones` although `time_zone` is a real table (known gap, deliberately out of scope for now).
 - Migrated tables use descriptive PKs (`account_id`, `player_id`, `timezone_id`), not `id`. They keep a read-only `.id`
   property alias so unmigrated page code still works; delete the alias and fix call sites when that page migrates.

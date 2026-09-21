@@ -4,8 +4,9 @@ from nicegui import ui
 
 from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
+from app.data import alliances as alliances_repo
 from app.data import players as players_repo
-from app.models.sample_data import alliances, time_slots
+from app.models.sample_data import time_slots
 from app.models.schema import Player, Role
 
 
@@ -23,9 +24,10 @@ async def search_page() -> None:
             results.clear()
             term = (query.value or "").lower().strip()
             all_players = await players_repo.list_players()
+            alliance_name_by_id = {a.alliance_id: a.name for a in await alliances_repo.list_alliances()}
             with results:
                 await _render_accounts(term, elevated)
-                _render_players(all_players, term, elevated)
+                _render_players(all_players, alliance_name_by_id, term, elevated)
                 _render_slots(all_players, term)
 
         query.on_value_change(run_search)
@@ -46,7 +48,9 @@ async def _render_accounts(term: str, elevated: bool) -> None:
             ui.label(label)
 
 
-def _render_players(all_players: list[Player], term: str, elevated: bool) -> None:
+def _render_players(
+    all_players: list[Player], alliance_name_by_id: dict[int, str], term: str, elevated: bool
+) -> None:
     matches = [p for p in all_players if term in p.kingshot_name.lower() or term in p.kingshot_id.lower()] \
         if term else all_players
     if not matches:
@@ -54,7 +58,7 @@ def _render_players(all_players: list[Player], term: str, elevated: bool) -> Non
     with ui.card().classes("w-full"):
         ui.label("Players").classes("font-semibold")
         for p in matches:
-            alliance = next((a.name for a in alliances if a.id == p.alliance_id), "?")
+            alliance = alliance_name_by_id.get(p.alliance_id, "?")
             label = f"{p.kingshot_name} ({alliance}) — Power {p.power:,}"
             if elevated:
                 label += f", TC {p.town_center_level}"

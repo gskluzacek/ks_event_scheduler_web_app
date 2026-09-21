@@ -6,9 +6,11 @@ from nicegui import ui
 
 from app.components import layout, role_switcher
 from app.data import accounts as accounts_repo
+from app.data import alliances as alliances_repo
+from app.data import kingdoms as kingdoms_repo
 from app.data import players as players_repo
-from app.models.sample_data import alliances, events, kingdoms, time_slots
-from app.models.schema import Player, Role, TimeSlot, TimeSlotType, next_id
+from app.models.sample_data import events, time_slots
+from app.models.schema import Alliance, Player, Role, TimeSlot, TimeSlotType, next_id
 from app.pages.account_player import (
     _admin_alliance_ids, _format_dt, _render_field, _resolve_account_name, _set_enabled,
 )
@@ -77,13 +79,14 @@ def _visibility_message() -> str | None:
     return "Showing your own players' time slots only."
 
 
-def _kingdom_ids_from_players(rows: list[Player]) -> set[int]:
+def _kingdom_ids_from_players(rows: list[Player], alliances: list[Alliance]) -> set[int]:
     alliance_ids = {p.alliance_id for p in rows}
-    return {a.kingdom_id for a in alliances if a.id in alliance_ids}
+    return {a.kingdom_id for a in alliances if a.alliance_id in alliance_ids}
 
 
 def _players_matching(
     visible: list[Player],
+    alliances: list[Alliance],
     *,
     kingdom_id: int | None = None,
     alliance_id: int | None = None,
@@ -91,14 +94,15 @@ def _players_matching(
     player_id: int | None = None,
 ) -> list[Player]:
     """`visible` narrowed by whichever of kingdom/alliance/account/player are
-    given. Used to compute each filter dropdown's options from the *other* active
+    given (`alliances` is the full alliance table, fetched once by the caller).
+    Used to compute each filter dropdown's options from the *other* active
     filters, and to reconcile them, so all four stay mutually consistent - mirrors
     app/pages/players.py's _narrow(), extended with account and player levels
     since this page also filters down to a single account or player.
     """
     rows = visible
     if kingdom_id is not None:
-        alliance_ids_in_kingdom = {a.id for a in alliances if a.kingdom_id == kingdom_id}
+        alliance_ids_in_kingdom = {a.alliance_id for a in alliances if a.kingdom_id == kingdom_id}
         rows = [p for p in rows if p.alliance_id in alliance_ids_in_kingdom]
     if alliance_id is not None:
         rows = [p for p in rows if p.alliance_id == alliance_id]
@@ -109,7 +113,9 @@ def _players_matching(
     return rows
 
 
-def _structured_filters(visible: list[Player]) -> tuple[int | None, int | None, int | None, int | None]:
+def _structured_filters(
+    visible: list[Player], alliances: list[Alliance]
+) -> tuple[int | None, int | None, int | None, int | None]:
     """The stored (kingdom_id, alliance_id, account_id, player_id) filter values, each
     dropped to None unless it still matches a visible player - and Kingdom/Alliance/
     Account also to None when this role doesn't get that dropdown at all.
@@ -117,16 +123,16 @@ def _structured_filters(visible: list[Player]) -> tuple[int | None, int | None, 
     show_kingdom_alliance = _show_kingdom_alliance_filter()
     show_account = _show_account_filter()
     return (
-        get_id_filter(FILTER_KINGDOM_KEY, _kingdom_ids_from_players(visible)) if show_kingdom_alliance else None,
+        get_id_filter(FILTER_KINGDOM_KEY, _kingdom_ids_from_players(visible, alliances)) if show_kingdom_alliance else None,
         get_id_filter(FILTER_ALLIANCE_KEY, {p.alliance_id for p in visible}) if show_kingdom_alliance else None,
         get_id_filter(FILTER_ACCOUNT_KEY, {p.account_id for p in visible}) if show_account else None,
         get_id_filter(FILTER_PLAYER_KEY, {p.player_id for p in visible}),
     )
 
 
-def _filtered_slots(visible: list[Player]) -> list[TimeSlot]:
+def _filtered_slots(visible: list[Player], alliances: list[Alliance]) -> list[TimeSlot]:
     rows = _visible_slots(visible)
-    kingdom_id, alliance_id, account_id, player_id = _structured_filters(visible)
+    kingdom_id, alliance_id, account_id, player_id = _structured_filters(visible, alliances)
     event_id = get_id_filter(FILTER_EVENT_KEY, {e.id for e in events})
     type_value = get_text_filter(FILTER_TYPE_KEY)
     review_value = get_text_filter(FILTER_REVIEW_KEY)
@@ -136,7 +142,7 @@ def _filtered_slots(visible: list[Player]) -> list[TimeSlot]:
     if kingdom_id is not None or alliance_id is not None or account_id is not None or player_id is not None:
         matching_player_ids = {
             p.player_id for p in _players_matching(
-                visible, kingdom_id=kingdom_id, alliance_id=alliance_id, account_id=account_id, player_id=player_id,
+                visible, alliances, kingdom_id=kingdom_id, alliance_id=alliance_id, account_id=account_id, player_id=player_id,
             )
         }
         rows = [s for s in rows if s.player_id in matching_player_ids]
@@ -163,10 +169,12 @@ async def timeslots_page() -> None:
 @ui.refreshable
 async def slot_filters() -> None:
     visible = await _visible_players_for_slots()
+    kingdoms = await kingdoms_repo.list_kingdoms()
+    alliances = await alliances_repo.list_alliances()
     show_kingdom_alliance = _show_kingdom_alliance_filter()
     show_account = _show_account_filter()
 
-    kingdom_id, alliance_id, account_id, player_id = _structured_filters(visible)
+    kingdom_id, alliance_id, account_id, player_id = _structured_filters(visible, alliances)
     event_id = get_id_filter(FILTER_EVENT_KEY, {e.id for e in events})
     type_value = get_text_filter(FILTER_TYPE_KEY)
     review_value = get_text_filter(FILTER_REVIEW_KEY)
@@ -175,21 +183,22 @@ async def slot_filters() -> None:
     # structured filters, so selecting any one narrows the rest - in every direction,
     # same mutual-cascade pattern as app/pages/players.py's player_filters().
     kingdom_option_ids = _kingdom_ids_from_players(
-        _players_matching(visible, alliance_id=alliance_id, account_id=account_id, player_id=player_id)
+        _players_matching(visible, alliances, alliance_id=alliance_id, account_id=account_id, player_id=player_id),
+        alliances,
     ) if show_kingdom_alliance else set()
     alliance_option_ids = {
         p.alliance_id for p in _players_matching(
-            visible, kingdom_id=kingdom_id, account_id=account_id, player_id=player_id,
+            visible, alliances, kingdom_id=kingdom_id, account_id=account_id, player_id=player_id,
         )
     } if show_kingdom_alliance else set()
     account_option_ids = {
         p.account_id for p in _players_matching(
-            visible, kingdom_id=kingdom_id, alliance_id=alliance_id, player_id=player_id,
+            visible, alliances, kingdom_id=kingdom_id, alliance_id=alliance_id, player_id=player_id,
         )
     } if show_account else set()
     player_options = {
         p.player_id: p.kingshot_name
-        for p in _players_matching(visible, kingdom_id=kingdom_id, alliance_id=alliance_id, account_id=account_id)
+        for p in _players_matching(visible, alliances, kingdom_id=kingdom_id, alliance_id=alliance_id, account_id=account_id)
     }
 
     with ui.row().classes("w-full items-end gap-2"):
@@ -198,12 +207,12 @@ async def slot_filters() -> None:
         # _show_kingdom_alliance_filter()/_show_account_filter() above).
         kingdom_select = alliance_select = account_select = None
         if show_kingdom_alliance:
-            kingdom_options = {k.id: k.name for k in kingdoms if k.id in kingdom_option_ids}
+            kingdom_options = {k.kingdom_id: k.name for k in kingdoms if k.kingdom_id in kingdom_option_ids}
             kingdom_select = ui.select(
                 kingdom_options, label="Kingdom", value=kingdom_id,
             ).props("outlined dense clearable").classes("w-40")
 
-            alliance_options = {a.id: a.name for a in alliances if a.id in alliance_option_ids}
+            alliance_options = {a.alliance_id: a.name for a in alliances if a.alliance_id in alliance_option_ids}
             alliance_select = ui.select(
                 alliance_options, label="Alliance", value=alliance_id,
             ).props("outlined dense clearable").classes("w-40")
@@ -295,32 +304,34 @@ async def _reconcile_filters() -> None:
     added as the most granular level.
     """
     visible = await _visible_players_for_slots()
-    kingdom_id, alliance_id, account_id, player_id = _structured_filters(visible)
+    alliances = await alliances_repo.list_alliances()
+    kingdom_id, alliance_id, account_id, player_id = _structured_filters(visible, alliances)
 
     if player_id is not None:
         valid = {
-            p.player_id for p in _players_matching(visible, kingdom_id=kingdom_id, alliance_id=alliance_id, account_id=account_id)
+            p.player_id for p in _players_matching(visible, alliances, kingdom_id=kingdom_id, alliance_id=alliance_id, account_id=account_id)
         }
         if player_id not in valid:
             set_filter(FILTER_PLAYER_KEY, None)
             player_id = None
     if alliance_id is not None:
         valid = {
-            p.alliance_id for p in _players_matching(visible, kingdom_id=kingdom_id, account_id=account_id, player_id=player_id)
+            p.alliance_id for p in _players_matching(visible, alliances, kingdom_id=kingdom_id, account_id=account_id, player_id=player_id)
         }
         if alliance_id not in valid:
             set_filter(FILTER_ALLIANCE_KEY, None)
             alliance_id = None
     if kingdom_id is not None:
         valid = _kingdom_ids_from_players(
-            _players_matching(visible, alliance_id=alliance_id, account_id=account_id, player_id=player_id)
+            _players_matching(visible, alliances, alliance_id=alliance_id, account_id=account_id, player_id=player_id),
+            alliances,
         )
         if kingdom_id not in valid:
             set_filter(FILTER_KINGDOM_KEY, None)
             kingdom_id = None
     if account_id is not None:
         valid = {
-            p.account_id for p in _players_matching(visible, kingdom_id=kingdom_id, alliance_id=alliance_id, player_id=player_id)
+            p.account_id for p in _players_matching(visible, alliances, kingdom_id=kingdom_id, alliance_id=alliance_id, player_id=player_id)
         }
         if account_id not in valid:
             set_filter(FILTER_ACCOUNT_KEY, None)
@@ -341,7 +352,8 @@ def _clear_slot_filters() -> None:
 @ui.refreshable
 async def slot_table() -> None:
     visible = await _visible_players_for_slots()
-    filtered = _filtered_slots(visible)
+    alliances = await alliances_repo.list_alliances()
+    filtered = _filtered_slots(visible, alliances)
     account_by_id = {a.account_id: a for a in await accounts_repo.list_accounts()}
     player_by_id = {p.player_id: p for p in visible}
     rows = []
@@ -452,7 +464,7 @@ async def _render_slot_details(slot: TimeSlot) -> None:
     player = await players_repo.get_player(slot.player_id)
     event = next((e for e in events if e.id == slot.event_id), None)
     account = await accounts_repo.get_account(player.account_id) if player else None
-    alliance = next((a for a in alliances if a.id == player.alliance_id), None) if player else None
+    alliance = await alliances_repo.get_alliance(player.alliance_id) if player else None
 
     with ui.row().classes("items-center gap-3 w-full"):
         ui.icon("schedule", size="32px").classes("text-grey-6")
